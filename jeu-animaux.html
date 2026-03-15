@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>🐶 Animaux</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: linear-gradient(160deg, #E8F5E9, #F3E5F5); min-height: 100vh; }
+
+    /* Consigne — nom de l'animal */
+    #animal-name {
+      text-align: center;
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.4rem;
+      color: #2D6A4F;
+      padding: 14px 16px 4px;
+      min-height: 70px;
+    }
+
+    #consigne-txt {
+      text-align: center;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.2rem;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    /* Grille d'animaux */
+    #animal-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+      padding: 12px 16px 24px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* Bouton animal */
+    .animal-btn {
+      border: 4px solid transparent;
+      border-radius: 24px;
+      background: white;
+      box-shadow: 0 5px 0 rgba(0,0,0,.12);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 18px 8px;
+      font-family: 'Fredoka One', cursive;
+      transition: transform .15s, box-shadow .15s;
+      min-height: 130px;
+    }
+
+    .animal-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 1px 0 rgba(0,0,0,.12);
+    }
+
+    .animal-btn .a-emoji {
+      font-size: 3.8rem;
+      line-height: 1.1;
+      display: block;
+    }
+
+    .animal-btn .a-name {
+      font-size: 1.1rem;
+      color: #555;
+      margin-top: 6px;
+    }
+
+    /* Bordure verte = correct, rouge = mauvais */
+    .animal-btn.correct { border-color: #4CAF50; background: #E8F5E9; }
+    .animal-btn.wrong   { border-color: #FF4B4B; background: #FFF0F0; }
+
+    /* Score + feedback */
+    #score-zone {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.3rem;
+      padding: 8px 16px 0;
+    }
+    #score-zone span {
+      background: white;
+      border-radius: 50px;
+      padding: 4px 16px;
+      box-shadow: 0 3px 8px rgba(0,0,0,.1);
+    }
+
+    #feedback {
+      text-align: center;
+      font-family: 'Fredoka One', cursive;
+      font-size: 2rem;
+      min-height: 55px;
+      padding: 6px;
+    }
+
+    /* Animation entrée des boutons */
+    @keyframes pop-in {
+      0%   { transform: scale(0.6); opacity: 0; }
+      70%  { transform: scale(1.08); opacity: 1; }
+      100% { transform: scale(1);    opacity: 1; }
+    }
+    .animal-btn { animation: pop-in .35s ease both; }
+  </style>
+</head>
+<body>
+
+  <nav class="nav-bar">
+    <a href="index.html" class="btn-home" aria-label="Retour au menu">🏠</a>
+    <span class="nav-title">🐾 Les Animaux !</span>
+  </nav>
+
+  <div id="score-zone">
+    ✅ <span id="good">0</span> &nbsp; ❌ <span id="bad">0</span>
+  </div>
+
+  <p id="consigne-txt">Clique sur l'animal !</p>
+  <div id="animal-name" aria-live="polite"></div>
+  <div id="feedback"    aria-live="polite"></div>
+
+  <div id="animal-grid" role="list" aria-label="Grille d'animaux"></div>
+
+  <script>
+    /* ============================================================
+       Jeu : Cliquer sur le bon animal
+       ============================================================
+       Principe : un nom d'animal apparaît. L'enfant doit cliquer
+       sur la bonne image parmi 4 propositions.
+       ============================================================ */
+
+    const ANIMALS = [
+      { name: 'Chien',     emoji: '🐶', sound: 'Ouaf ouaf !' },
+      { name: 'Chat',      emoji: '🐱', sound: 'Miaou !'     },
+      { name: 'Vache',     emoji: '🐮', sound: 'Meuh !'      },
+      { name: 'Cochon',    emoji: '🐷', sound: 'Groin groin !'},
+      { name: 'Mouton',    emoji: '🐑', sound: 'Bêê !'       },
+      { name: 'Poulet',    emoji: '🐔', sound: 'Cot cot !'   },
+      { name: 'Grenouille',emoji: '🐸', sound: 'Coâ coâ !'   },
+      { name: 'Lapin',     emoji: '🐰', sound: '...'         },
+      { name: 'Lion',      emoji: '🦁', sound: 'ROARRR !'    },
+      { name: 'Éléphant',  emoji: '🐘', sound: 'Barrit !'    },
+      { name: 'Singe',     emoji: '🐵', sound: 'Ouh ouh !'   },
+      { name: 'Pingouin',  emoji: '🐧', sound: '...'         },
+    ];
+
+    let goodCount = 0, badCount = 0, targetIdx = 0, choices = [];
+    let locked = false;
+
+    const nameEl     = document.getElementById('animal-name');
+    const gridEl     = document.getElementById('animal-grid');
+    const feedbackEl = document.getElementById('feedback');
+    const goodEl     = document.getElementById('good');
+    const badEl      = document.getElementById('bad');
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function newRound() {
+      locked = false;
+      feedbackEl.textContent = '';
+
+      // 4 animaux aléatoires
+      choices = shuffle(ANIMALS).slice(0, 4);
+      targetIdx = Math.floor(Math.random() * 4);
+      const target = choices[targetIdx];
+
+      // Affiche le nom de l'animal à trouver
+      nameEl.textContent = '👉 Trouve le ' + target.name + ' !';
+
+      // Crée les boutons
+      gridEl.innerHTML = '';
+      choices.forEach((animal, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'animal-btn';
+        btn.setAttribute('aria-label', animal.name);
+        btn.style.animationDelay = (i * 0.08) + 's';
+        btn.innerHTML = `<span class="a-emoji">${animal.emoji}</span>
+                         <span class="a-name">${animal.name}</span>`;
+
+        function handleTap(e) {
+          e.preventDefault();
+          if (locked) return;
+          locked = true;
+
+          if (i === targetIdx) {
+            goodCount++;
+            goodEl.textContent = goodCount;
+            btn.classList.add('correct');
+            feedbackEl.style.color = '#4CAF50';
+            feedbackEl.textContent = '🌟 Bravo ! ' + target.sound;
+            setTimeout(newRound, 1400);
+          } else {
+            badCount++;
+            badEl.textContent = badCount;
+            btn.classList.add('wrong');
+            feedbackEl.style.color = '#FF4B4B';
+            feedbackEl.textContent = '❌ Non ! Cherche encore !';
+            // Montre le bon
+            gridEl.querySelectorAll('.animal-btn')[targetIdx].classList.add('correct');
+            setTimeout(newRound, 1800);
+          }
+        }
+
+        btn.addEventListener('click',      handleTap, { passive: false });
+        btn.addEventListener('touchstart', handleTap, { passive: false });
+        gridEl.appendChild(btn);
+      });
+    }
+
+    newRound();
+  </script>
+</body>
+</html>

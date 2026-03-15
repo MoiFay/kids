@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Viewport mobile-first obligatoire -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="description" content="Mini-jeux éducatifs et amusants pour les enfants de 3 à 5 ans." />
+  <title>🎮 Jeux pour enfants</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Styles spécifiques à la page d'accueil */
+    body { background-color: #FFF9F0; }
+  </style>
+</head>
+<body>
+
+  <!-- Nuages décoratifs en arrière-plan -->
+  <span class="cloud">☁️</span>
+  <span class="cloud">☁️</span>
+  <span class="cloud">☁️</span>
+
+  <!-- En-tête principal -->
+  <header class="home-header">
+    <span class="logo" aria-hidden="true">🌟</span>
+    <h1>Mes Jeux !</h1>
+    <p>Choisis un jeu et amuse-toi 🎉</p>
+  </header>
+
+  <!-- Grille des 6 jeux -->
+  <main>
+    <div class="games-grid" role="list">
+
+      <!-- Jeu 1 : Ballons -->
+      <a href="jeu-ballons.html"
+         class="game-card"
+         role="listitem"
+         aria-label="Jeu Ballons à éclater">
+        <span class="card-emoji" aria-hidden="true">🎈</span>
+        <span class="card-label">Ballons</span>
+      </a>
+
+      <!-- Jeu 2 : Couleurs -->
+      <a href="jeu-couleurs.html"
+         class="game-card"
+         role="listitem"
+         aria-label="Jeu Trouver la bonne couleur">
+        <span class="card-emoji" aria-hidden="true">🎨</span>
+        <span class="card-label">Couleurs</span>
+      </a>
+
+      <!-- Jeu 3 : Animaux -->
+      <a href="jeu-animaux.html"
+         class="game-card"
+         role="listitem"
+         aria-label="Jeu Cliquer sur le bon animal">
+        <span class="card-emoji" aria-hidden="true">🐶</span>
+        <span class="card-label">Animaux</span>
+      </a>
+
+      <!-- Jeu 4 : Fruits -->
+      <a href="jeu-fruits.html"
+         class="game-card"
+         role="listitem"
+         aria-label="Jeu Attraper les fruits">
+        <span class="card-emoji" aria-hidden="true">🍎</span>
+        <span class="card-label">Fruits</span>
+      </a>
+
+      <!-- Jeu 5 : Compter -->
+      <a href="jeu-nombres.html"
+         class="game-card"
+         role="listitem"
+         aria-label="Jeu Compter les objets">
+        <span class="card-emoji" aria-hidden="true">🔢</span>
+        <span class="card-label">Compter</span>
+      </a>
+
+      <!-- Jeu 6 : Anglais -->
+      <a href="jeu-anglais.html"
+         class="game-card"
+         role="listitem"
+         aria-label="Mini-jeu pour apprendre l'anglais">
+        <span class="card-emoji" aria-hidden="true">🇬🇧</span>
+        <span class="card-label">English</span>
+      </a>
+
+    </div><!-- /.games-grid -->
+  </main>
+
+  <!-- Petit pied de page -->
+  <footer style="text-align:center; padding:12px; color:#bbb; font-size:.85rem;">
+    Fait avec ❤️ pour les petits explorateurs
+  </footer>
+
+  <script>
+    // Animation d'entrée légèrement décalée pour chaque carte
+    document.querySelectorAll('.game-card').forEach((card, i) => {
+      card.style.animationDelay = `${i * 0.08}s`;
+    });
+  </script>
+
+</body>
+</html>

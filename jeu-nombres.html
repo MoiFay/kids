@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>🔢 Compter</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: linear-gradient(160deg, #E3F2FD, #EDE7F6); min-height: 100vh; }
+
+    /* Question */
+    #question {
+      text-align: center;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.7rem;
+      color: #1A237E;
+      padding: 14px 16px 6px;
+    }
+
+    /* Zone des objets à compter */
+    #objects-area {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      min-height: 140px;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .obj-item {
+      font-size: 2.8rem;
+      display: inline-flex;
+      animation: pop-in .3s ease both;
+      cursor: default;
+      user-select: none;
+      /* chaque objet cliquable allume une petite étoile */
+      transition: filter .2s;
+    }
+
+    .obj-item.counted { filter: brightness(0.5) sepia(1) saturate(3) hue-rotate(90deg); }
+
+    /* Séparateur */
+    #separator {
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #9C27B0, transparent);
+      margin: 4px 20px;
+      border-radius: 2px;
+    }
+
+    /* Réponses possibles */
+    #answers {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 14px;
+      padding: 10px 16px 24px;
+      max-width: 440px;
+      margin: 0 auto;
+    }
+
+    .answer-btn {
+      width: 90px;
+      height: 90px;
+      border-radius: 24px;
+      border: none;
+      background: white;
+      box-shadow: 0 5px 0 rgba(0,0,0,.15);
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.2rem;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s;
+      color: #333;
+    }
+
+    .answer-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 1px 0 rgba(0,0,0,.15);
+    }
+
+    .answer-btn.correct { background: #C8E6C9; color: #1B5E20; border: 4px solid #4CAF50; }
+    .answer-btn.wrong   { background: #FFCDD2; color: #B71C1C; border: 4px solid #FF4B4B; }
+
+    /* Score */
+    #score-zone {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.3rem;
+      padding: 8px 16px 0;
+    }
+    #score-zone span {
+      background: white;
+      border-radius: 50px;
+      padding: 4px 16px;
+      box-shadow: 0 3px 8px rgba(0,0,0,.1);
+    }
+
+    /* Feedback */
+    #feedback {
+      text-align: center;
+      font-family: 'Fredoka One', cursive;
+      font-size: 2rem;
+      min-height: 55px;
+      padding: 4px;
+    }
+
+    /* Compteur en direct : l'enfant clique sur les objets */
+    #count-hint {
+      text-align: center;
+      color: #9C27B0;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.1rem;
+      padding-bottom: 4px;
+    }
+
+    @keyframes pop-in {
+      0%   { transform: scale(0.5); opacity: 0; }
+      70%  { transform: scale(1.15);}
+      100% { transform: scale(1);   opacity: 1; }
+    }
+
+    /* Chiffre vivant (affichage du comptage interactif) */
+    #live-count {
+      text-align: center;
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.4rem;
+      color: #9C27B0;
+      min-height: 52px;
+      padding: 4px;
+      transition: transform .2s;
+    }
+
+    .count-bump {
+      animation: bump .25s ease;
+    }
+    @keyframes bump {
+      0%, 100% { transform: scale(1);    }
+      50%       { transform: scale(1.35); }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="nav-bar">
+    <a href="index.html" class="btn-home" aria-label="Retour au menu">🏠</a>
+    <span class="nav-title">🔢 Compter !</span>
+  </nav>
+
+  <div id="score-zone">
+    ✅ <span id="good">0</span> &nbsp; ❌ <span id="bad">0</span>
+  </div>
+
+  <!-- Question -->
+  <p id="question" aria-live="polite">Combien y a-t-il d'objets ?</p>
+
+  <!-- Objets à compter (cliquables pour aider) -->
+  <div id="objects-area" aria-label="Objets à compter"></div>
+
+  <!-- Aide interactive -->
+  <p id="count-hint">👆 Touche chaque objet pour compter !</p>
+  <div id="live-count" aria-live="polite"></div>
+
+  <div id="separator"></div>
+
+  <!-- Feedback -->
+  <div id="feedback" aria-live="polite"></div>
+
+  <!-- Boutons de réponse -->
+  <div id="answers" role="group" aria-label="Choisir le nombre"></div>
+
+  <script>
+    /* ============================================================
+       Jeu : Compter les objets
+       ============================================================
+       Principe : des emojis s'affichent. L'enfant peut les toucher
+       un par un pour les compter (ils changent de couleur).
+       Ensuite il clique sur le bon chiffre parmi 4 propositions.
+       Nombres de 1 à 9.
+       ============================================================ */
+
+    const ITEMS = [
+      '⭐','🌟','🎈','🍎','🐶','🌸','🍕','🏀','🚗','🦋',
+      '🌈','🎵','🍦','🐸','🎃','🌻','🎠','🦄','🍩','🔔'
+    ];
+
+    let goodCount = 0, badCount = 0;
+    let correctAnswer = 0;
+    let countedSoFar  = 0;
+    let locked = false;
+
+    const objectsEl  = document.getElementById('objects-area');
+    const answersEl  = document.getElementById('answers');
+    const feedbackEl = document.getElementById('feedback');
+    const goodEl     = document.getElementById('good');
+    const badEl      = document.getElementById('bad');
+    const liveEl     = document.getElementById('live-count');
+
+    /* --- Mélange tableau --- */
+    function shuffle(arr) {
+      const a = [...arr]; for (let i = a.length-1; i>0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a;
+    }
+
+    /* --- Nouvelle question --- */
+    function newRound() {
+      locked = false;
+      countedSoFar = 0;
+      feedbackEl.textContent = '';
+      liveEl.textContent = '';
+
+      // Nombre d'objets entre 1 et 9
+      correctAnswer = Math.floor(Math.random() * 9) + 1;
+
+      // Emoji aléatoire pour ce tour
+      const emoji = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+
+      // Affiche les objets
+      objectsEl.innerHTML = '';
+      for (let i = 0; i < correctAnswer; i++) {
+        const item = document.createElement('span');
+        item.className = 'obj-item';
+        item.textContent = emoji;
+        item.style.animationDelay = (i * 0.06) + 's';
+
+        // Clic sur un objet = incrémente le compteur interactif
+        function tapObj(e) {
+          e.preventDefault();
+          if (locked) return;
+          if (!item.classList.contains('counted')) {
+            item.classList.add('counted');
+            countedSoFar++;
+            liveEl.textContent = countedSoFar + ' 🖐️';
+            liveEl.classList.remove('count-bump');
+            void liveEl.offsetWidth; // reflow pour relancer l'animation
+            liveEl.classList.add('count-bump');
+          }
+        }
+        item.addEventListener('click',      tapObj, { passive: false });
+        item.addEventListener('touchstart', tapObj, { passive: false });
+        objectsEl.appendChild(item);
+      }
+
+      // Génère 4 réponses dont la bonne
+      let opts = new Set([correctAnswer]);
+      while (opts.size < 4) {
+        let v = Math.floor(Math.random() * 9) + 1;
+        opts.add(v);
+      }
+      opts = shuffle([...opts]);
+
+      answersEl.innerHTML = '';
+      opts.forEach(num => {
+        const btn = document.createElement('button');
+        btn.className = 'answer-btn';
+        btn.textContent = num;
+        btn.setAttribute('aria-label', num + ' objets');
+
+        function pick(e) {
+          e.preventDefault();
+          if (locked) return;
+          locked = true;
+          answersEl.querySelectorAll('.answer-btn').forEach(b => b.disabled = true);
+
+          if (num === correctAnswer) {
+            goodCount++;
+            goodEl.textContent = goodCount;
+            btn.classList.add('correct');
+            const msgs = ['🌟 Bravo ! C\'est ' + correctAnswer + ' !','🎉 Excellent !','✨ Super compté !','👏 Parfait !'];
+            feedbackEl.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+            feedbackEl.style.color = '#4CAF50';
+            setTimeout(newRound, 1600);
+          } else {
+            badCount++;
+            badEl.textContent = badCount;
+            btn.classList.add('wrong');
+            feedbackEl.textContent = '❌ Il y en a ' + correctAnswer + ' !';
+            feedbackEl.style.color = '#FF4B4B';
+            // Met en vert le bon bouton
+            answersEl.querySelectorAll('.answer-btn').forEach(b => {
+              if (parseInt(b.textContent) === correctAnswer) b.classList.add('correct');
+            });
+            setTimeout(newRound, 2000);
+          }
+        }
+
+        btn.addEventListener('click',      pick, { passive: false });
+        btn.addEventListener('touchstart', pick, { passive: false });
+        answersEl.appendChild(btn);
+      });
+    }
+
+    newRound();
+  </script>
+</body>
+</html>

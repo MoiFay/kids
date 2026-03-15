@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>🎈 Ballons à éclater</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* ---- Styles spécifiques aux ballons ---- */
+    body { background: linear-gradient(160deg, #87CEEB 0%, #E0F7FA 100%); min-height: 100vh; }
+
+    /* Zone de jeu = toute la hauteur visible */
+    #balloon-area {
+      position: relative;
+      width: 100%;
+      height: calc(100vh - 140px); /* hauteur = écran - nav - score */
+      overflow: hidden;
+    }
+
+    /* Chaque ballon */
+    .balloon {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3.6rem;       /* taille du ballon */
+      cursor: pointer;
+      user-select: none;
+      /* Montée progressive */
+      animation: rise linear forwards;
+      will-change: transform;
+      /* Zone de toucher généreuse */
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+    }
+
+    /* Animation de montée — la durée est définie en JS */
+    @keyframes rise {
+      from { transform: translateY(0) scale(1); }
+      to   { transform: translateY(-110vh) scale(1.05); }
+    }
+
+    /* Animation d'explosion quand on clique */
+    @keyframes explode {
+      0%   { transform: scale(1);   opacity: 1; }
+      40%  { transform: scale(1.8); opacity: .8; }
+      100% { transform: scale(0);   opacity: 0; }
+    }
+
+    .balloon.popped {
+      animation: explode .35s ease forwards !important;
+      pointer-events: none;
+    }
+
+    /* Score stylisé */
+    #score-display {
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.5rem;
+      text-align: center;
+      padding: 8px;
+      color: #2C3E50;
+    }
+    #score-display span {
+      background: white;
+      border-radius: 50px;
+      padding: 4px 18px;
+      box-shadow: 0 3px 8px rgba(0,0,0,.12);
+      margin: 0 6px;
+    }
+
+    /* Message de félicitations */
+    #message {
+      text-align: center;
+      font-family: 'Fredoka One', cursive;
+      font-size: 2rem;
+      color: #FF4B4B;
+      min-height: 50px;
+      padding: 4px;
+    }
+
+    /* Particules d'explosion */
+    .particle {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      pointer-events: none;
+      animation: particle-fly .6s ease-out forwards;
+    }
+
+    @keyframes particle-fly {
+      0%   { transform: translate(0,0) scale(1); opacity: 1; }
+      100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation : bouton maison -->
+  <nav class="nav-bar">
+    <a href="index.html" class="btn-home" aria-label="Retour au menu">🏠</a>
+    <span class="nav-title">🎈 Ballons à éclater !</span>
+  </nav>
+
+  <!-- Score -->
+  <div id="score-display">
+    Score : <span id="score">0</span> &nbsp;| Record : <span id="record">0</span>
+  </div>
+
+  <!-- Message -->
+  <div id="message" aria-live="polite"></div>
+
+  <!-- Zone où les ballons apparaissent -->
+  <div id="balloon-area" aria-label="Zone de jeu des ballons"></div>
+
+  <script>
+    /* ============================================================
+       Jeu : Ballons à éclater
+       ============================================================
+       Principe : des ballons montent depuis le bas.
+       L'enfant clique / touche chaque ballon pour l'éclater.
+       Chaque ballon éclaté = +1 point.
+       ============================================================ */
+
+    // Liste d'emojis de ballons de couleurs variées
+    const BALLOONS = ['🎈','🎈','🎈','🎈','🎈','🎈','🎈','🎈','🎈','🎈'];
+    const COLORS = [
+      '#FF4B4B','#FF8C00','#FFD700','#4CAF50',
+      '#2196F3','#9C27B0','#FF69B4','#00BCD4'
+    ];
+
+    let score  = 0;
+    let record = parseInt(localStorage.getItem('balloon-record') || '0');
+    let spawnTimer = null;
+    let SPAWN_INTERVAL = 1200; // ms entre chaque ballon (diminue avec le score)
+
+    const scoreEl  = document.getElementById('score');
+    const recordEl = document.getElementById('record');
+    const msgEl    = document.getElementById('message');
+    const area     = document.getElementById('balloon-area');
+
+    // Affiche le record sauvegardé
+    recordEl.textContent = record;
+
+    /* --- Crée un ballon et l'ajoute à la zone --- */
+    function spawnBalloon() {
+      const balloon = document.createElement('div');
+      balloon.className = 'balloon';
+
+      // Emoji et couleur de fond aléatoires
+      const colorIdx = Math.floor(Math.random() * COLORS.length);
+      balloon.style.background = COLORS[colorIdx] + '44'; // légère teinte
+      balloon.textContent = '🎈';
+
+      // Position horizontale aléatoire (en restant dans les bords)
+      const areaW = area.clientWidth;
+      const left  = Math.random() * (areaW - 90) + 5;
+      balloon.style.left = left + 'px';
+      balloon.style.bottom = '-90px'; /* démarre sous l'écran */
+
+      // Vitesse aléatoire : entre 3s et 6s
+      const duration = (Math.random() * 3 + 3).toFixed(1);
+      balloon.style.animationDuration = duration + 's';
+      balloon.style.animationName = 'rise';
+
+      // Filtre de couleur via hue-rotate pour varier la couleur du ballon emoji
+      balloon.style.filter = `hue-rotate(${colorIdx * 45}deg)`;
+
+      /* --- Écouteurs d'événements (click ET touch pour mobile) --- */
+      function popBalloon(e) {
+        e.preventDefault(); // évite double-déclenchement sur mobile
+        if (balloon.classList.contains('popped')) return;
+
+        balloon.classList.add('popped');
+        spawnParticles(balloon);
+
+        // Incrémente le score
+        score++;
+        scoreEl.textContent = score;
+
+        // Mise à jour du record
+        if (score > record) {
+          record = score;
+          recordEl.textContent = record;
+          localStorage.setItem('balloon-record', record);
+        }
+
+        // Messages d'encouragement variés
+        const msgs = ['🌟 Bravo !','👏 Super !','🎉 Excellent !','✨ Waouh !','😄 Cool !'];
+        msgEl.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+        setTimeout(() => { msgEl.textContent = ''; }, 800);
+
+        // Accélère légèrement le spawn toutes les 5 éclates
+        if (score % 5 === 0 && SPAWN_INTERVAL > 500) {
+          SPAWN_INTERVAL -= 100;
+          restartSpawnTimer();
+        }
+
+        // Retire le ballon du DOM après l'animation
+        setTimeout(() => balloon.remove(), 400);
+      }
+
+      balloon.addEventListener('click',      popBalloon, { passive: false });
+      balloon.addEventListener('touchstart',  popBalloon, { passive: false });
+
+      area.appendChild(balloon);
+
+      // Supprime automatiquement le ballon s'il atteint le haut sans être cliqué
+      setTimeout(() => {
+        if (!balloon.classList.contains('popped')) balloon.remove();
+      }, duration * 1000 + 200);
+    }
+
+    /* --- Particules colorées lors de l'explosion --- */
+    function spawnParticles(balloon) {
+      const rect = balloon.getBoundingClientRect();
+      const areaRect = area.getBoundingClientRect();
+      const cx = rect.left - areaRect.left + rect.width / 2;
+      const cy = rect.top  - areaRect.top  + rect.height / 2;
+
+      for (let i = 0; i < 8; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        const angle = (i / 8) * Math.PI * 2;
+        const dist  = 50 + Math.random() * 40;
+        p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+        p.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+        p.style.left = cx + 'px';
+        p.style.top  = cy + 'px';
+        p.style.background = COLORS[Math.floor(Math.random() * COLORS.length)];
+        area.appendChild(p);
+        setTimeout(() => p.remove(), 700);
+      }
+    }
+
+    /* --- Lance / relance le minuteur de spawn --- */
+    function restartSpawnTimer() {
+      clearInterval(spawnTimer);
+      spawnTimer = setInterval(spawnBalloon, SPAWN_INTERVAL);
+    }
+
+    /* --- Démarrage --- */
+    spawnBalloon();          // premier ballon immédiatement
+    restartSpawnTimer();
+  </script>
+</body>
+</html>

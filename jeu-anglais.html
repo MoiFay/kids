@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>🇬🇧 Apprendre l'anglais</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: linear-gradient(160deg, #FFF8E1, #E8EAF6); min-height: 100vh; }
+
+    /* ---- Sélecteur de thème ---- */
+    #theme-selector {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px 14px;
+    }
+
+    .theme-btn {
+      border: 3px solid transparent;
+      border-radius: 50px;
+      padding: 8px 18px;
+      background: white;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1rem;
+      cursor: pointer;
+      box-shadow: 0 3px 6px rgba(0,0,0,.12);
+      color: #444;
+      transition: transform .12s, box-shadow .12s;
+    }
+
+    .theme-btn:active  { transform: scale(.95); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+    .theme-btn.active  { background: #3F51B5; color: white; border-color: #1A237E; }
+
+    /* ---- Mot / phrase à apprendre ---- */
+    #word-display {
+      text-align: center;
+      padding: 10px 16px 4px;
+    }
+
+    #word-english {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.6rem;
+      color: #1A237E;
+      display: block;
+    }
+
+    #word-french {
+      font-size: 1.1rem;
+      color: #888;
+      display: block;
+      margin-top: 2px;
+    }
+
+    #word-emoji {
+      font-size: 4rem;
+      display: block;
+      margin: 6px 0;
+      animation: bounce 2s infinite;
+    }
+
+    /* ---- Bouton de prononciation ---- */
+    #btn-speak {
+      display: block;
+      margin: 0 auto 8px;
+      background: #3F51B5;
+      color: white;
+      border: none;
+      border-radius: 50px;
+      padding: 12px 28px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.3rem;
+      cursor: pointer;
+      box-shadow: 0 5px 0 rgba(0,0,0,.2);
+      transition: transform .12s, box-shadow .12s;
+      min-height: 56px;
+    }
+    #btn-speak:active {
+      transform: translateY(4px);
+      box-shadow: 0 1px 0 rgba(0,0,0,.2);
+    }
+    #btn-speak.speaking { background: #FF8C00; }
+
+    /* ---- Grille de réponses ---- */
+    #answers {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      padding: 8px 16px 24px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    .ans-btn {
+      border: 3px solid transparent;
+      border-radius: 20px;
+      background: white;
+      box-shadow: 0 5px 0 rgba(0,0,0,.13);
+      cursor: pointer;
+      padding: 14px 8px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.15rem;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      min-height: 100px;
+      transition: transform .12s, box-shadow .12s;
+    }
+    .ans-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 1px 0 rgba(0,0,0,.13);
+    }
+    .ans-btn .ans-emoji { font-size: 2.2rem; }
+    .ans-btn.correct { background: #C8E6C9; border-color: #4CAF50; }
+    .ans-btn.wrong   { background: #FFCDD2; border-color: #FF4B4B; }
+
+    /* ---- Score ---- */
+    #score-zone {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.2rem;
+      padding: 6px 16px 0;
+    }
+    #score-zone span {
+      background: white;
+      border-radius: 50px;
+      padding: 4px 14px;
+      box-shadow: 0 3px 8px rgba(0,0,0,.1);
+    }
+
+    /* ---- Feedback ---- */
+    #feedback {
+      text-align: center;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.8rem;
+      min-height: 52px;
+      padding: 4px;
+    }
+
+    /* ---- Info SpeechSynthesis ---- */
+    #speech-info {
+      text-align: center;
+      font-size: .85rem;
+      color: #bbb;
+      padding: 2px 16px 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="nav-bar">
+    <a href="index.html" class="btn-home" aria-label="Retour au menu">🏠</a>
+    <span class="nav-title">🇬🇧 English Time !</span>
+  </nav>
+
+  <!-- Score -->
+  <div id="score-zone">
+    ✅ <span id="good">0</span> &nbsp; ❌ <span id="bad">0</span>
+  </div>
+
+  <!-- Sélecteur de thème -->
+  <div id="theme-selector" role="group" aria-label="Choisir un thème"></div>
+
+  <!-- Affichage du mot à apprendre -->
+  <div id="word-display">
+    <span id="word-emoji" aria-hidden="true"></span>
+    <span id="word-english" aria-live="polite"></span>
+    <span id="word-french"></span>
+  </div>
+
+  <!-- Bouton prononcer -->
+  <button id="btn-speak">🔊 Écouter</button>
+  <p id="speech-info"></p>
+
+  <!-- Feedback -->
+  <div id="feedback" aria-live="polite"></div>
+
+  <!-- Réponses -->
+  <div id="answers" role="group" aria-label="Choisir la bonne réponse"></div>
+
+  <script>
+    /* ============================================================
+       Jeu : Apprendre l'anglais
+       ============================================================
+       Thèmes disponibles :
+         1. Compter (numbers)
+         2. Couleurs (colors)
+         3. Jours de la semaine (days)
+         4. Salutations (greetings)
+         5. Se présenter (introductions)
+
+       Fonctionnement :
+         - On affiche le mot EN anglais avec son emoji
+         - On propose 4 traductions françaises
+         - L'enfant doit choisir la bonne traduction
+         - Le mot est prononcé en anglais via SpeechSynthesis
+       ============================================================ */
+
+    const THEMES = {
+      numbers: {
+        label: '🔢 Compter',
+        items: [
+          { en: 'One',   fr: 'Un',    emoji: '1️⃣' },
+          { en: 'Two',   fr: 'Deux',  emoji: '2️⃣' },
+          { en: 'Three', fr: 'Trois', emoji: '3️⃣' },
+          { en: 'Four',  fr: 'Quatre',emoji: '4️⃣' },
+          { en: 'Five',  fr: 'Cinq',  emoji: '5️⃣' },
+          { en: 'Six',   fr: 'Six',   emoji: '6️⃣' },
+          { en: 'Seven', fr: 'Sept',  emoji: '7️⃣' },
+          { en: 'Eight', fr: 'Huit',  emoji: '8️⃣' },
+          { en: 'Nine',  fr: 'Neuf',  emoji: '9️⃣' },
+          { en: 'Ten',   fr: 'Dix',   emoji: '🔟' },
+        ]
+      },
+      colors: {
+        label: '🎨 Couleurs',
+        items: [
+          { en: 'Red',    fr: 'Rouge',  emoji: '🔴' },
+          { en: 'Blue',   fr: 'Bleu',   emoji: '🔵' },
+          { en: 'Yellow', fr: 'Jaune',  emoji: '🟡' },
+          { en: 'Green',  fr: 'Vert',   emoji: '🟢' },
+          { en: 'Orange', fr: 'Orange', emoji: '🟠' },
+          { en: 'Purple', fr: 'Violet', emoji: '🟣' },
+          { en: 'Pink',   fr: 'Rose',   emoji: '🩷' },
+          { en: 'White',  fr: 'Blanc',  emoji: '⚪' },
+          { en: 'Black',  fr: 'Noir',   emoji: '⚫' },
+        ]
+      },
+      days: {
+        label: '📅 Jours',
+        items: [
+          { en: 'Monday',    fr: 'Lundi',    emoji: '📅' },
+          { en: 'Tuesday',   fr: 'Mardi',    emoji: '📅' },
+          { en: 'Wednesday', fr: 'Mercredi', emoji: '📅' },
+          { en: 'Thursday',  fr: 'Jeudi',    emoji: '📅' },
+          { en: 'Friday',    fr: 'Vendredi', emoji: '🎉' },
+          { en: 'Saturday',  fr: 'Samedi',   emoji: '🌟' },
+          { en: 'Sunday',    fr: 'Dimanche', emoji: '☀️' },
+        ]
+      },
+      greetings: {
+        label: '👋 Bonjour',
+        items: [
+          { en: 'Hello',         fr: 'Bonjour',    emoji: '👋' },
+          { en: 'Good morning',  fr: 'Bonjour (matin)', emoji: '🌅' },
+          { en: 'Good night',    fr: 'Bonne nuit', emoji: '🌙' },
+          { en: 'Goodbye',       fr: 'Au revoir',  emoji: '👋' },
+          { en: 'How are you?',  fr: 'Comment vas-tu ?', emoji: '😊' },
+          { en: 'Very well',     fr: 'Très bien',  emoji: '😄' },
+          { en: 'Thank you',     fr: 'Merci',      emoji: '🙏' },
+          { en: 'Please',        fr: 'S\'il te plaît', emoji: '✨' },
+        ]
+      },
+      intro: {
+        label: '🙋 Je me présente',
+        items: [
+          { en: 'My name is…',  fr: 'Je m\'appelle…', emoji: '🙋' },
+          { en: 'I am …',       fr: 'J\'ai … ans',    emoji: '🎂' },
+          { en: 'I like…',      fr: 'J\'aime…',       emoji: '❤️' },
+          { en: 'I live in…',   fr: 'J\'habite à…',   emoji: '🏠' },
+          { en: 'I am happy',   fr: 'Je suis heureux',emoji: '😄' },
+          { en: 'I am sad',     fr: 'Je suis triste', emoji: '😢' },
+          { en: 'Yes',          fr: 'Oui',            emoji: '✅' },
+          { en: 'No',           fr: 'Non',            emoji: '❌' },
+        ]
+      }
+    };
+
+    /* ---- Paramètres globaux ---- */
+    let currentTheme  = 'numbers';
+    let currentItem   = null;
+    let goodCount     = 0, badCount = 0;
+    let locked        = false;
+    let speechEnabled = false;
+    let engVoice      = null;
+
+    /* ---- Éléments DOM ---- */
+    const themeSelEl   = document.getElementById('theme-selector');
+    const emojiEl      = document.getElementById('word-emoji');
+    const englishEl    = document.getElementById('word-english');
+    const frenchEl     = document.getElementById('word-french');
+    const speakBtn     = document.getElementById('btn-speak');
+    const answersEl    = document.getElementById('answers');
+    const feedbackEl   = document.getElementById('feedback');
+    const goodEl       = document.getElementById('good');
+    const badEl        = document.getElementById('bad');
+    const speechInfoEl = document.getElementById('speech-info');
+
+    /* ============================================================
+       SpeechSynthesis
+       ============================================================ */
+    function initSpeech() {
+      if (!window.speechSynthesis) {
+        speechInfoEl.textContent = '(Synthèse vocale non disponible sur cet appareil)';
+        return;
+      }
+      function loadVoices() {
+        const voices = window.speechSynthesis.getVoices();
+        // Cherche une voix anglaise (en-GB en priorité, sinon en-US)
+        engVoice = voices.find(v => v.lang === 'en-GB')
+                || voices.find(v => v.lang.startsWith('en-'))
+                || null;
+        speechEnabled = true;
+        speechInfoEl.textContent = engVoice
+          ? '🔊 Appuie sur le bouton pour entendre le mot en anglais !'
+          : '🔊 Prononciation activée';
+      }
+      if (window.speechSynthesis.getVoices().length > 0) {
+        loadVoices();
+      } else {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+      }
+    }
+
+    /* Prononce un texte en anglais */
+    function speak(text) {
+      if (!speechEnabled || !window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'en-GB';
+      utter.rate = 0.85;   // légèrement plus lent pour les enfants
+      utter.pitch = 1.1;   // voix légèrement aiguë, enfantine
+      if (engVoice) utter.voice = engVoice;
+      speakBtn.classList.add('speaking');
+      utter.onend = () => speakBtn.classList.remove('speaking');
+      window.speechSynthesis.speak(utter);
+    }
+
+    /* Son de succès (bip aigü) via AudioContext */
+    function playSuccess() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const notes = [523, 659, 784, 1046]; // Do Mi Sol Do (octave +)
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.3, ctx.currentTime + i * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.2);
+          osc.start(ctx.currentTime + i * 0.12);
+          osc.stop (ctx.currentTime + i * 0.12 + 0.2);
+        });
+      } catch(e) { /* Son non disponible — silencieux */ }
+    }
+
+    /* Son d'erreur (bip grave) */
+    function playError() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.value = 180;
+        gain.gain.setValueAtTime(0.25, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        osc.start(ctx.currentTime);
+        osc.stop (ctx.currentTime + 0.4);
+      } catch(e) {}
+    }
+
+    /* ============================================================
+       Interface thèmes
+       ============================================================ */
+    function buildThemeSelector() {
+      themeSelEl.innerHTML = '';
+      Object.entries(THEMES).forEach(([key, theme]) => {
+        const btn = document.createElement('button');
+        btn.className = 'theme-btn' + (key === currentTheme ? ' active' : '');
+        btn.textContent = theme.label;
+
+        function selectTheme(e) {
+          e.preventDefault();
+          currentTheme = key;
+          themeSelEl.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          newRound();
+        }
+        btn.addEventListener('click',      selectTheme, { passive: false });
+        btn.addEventListener('touchstart', selectTheme, { passive: false });
+        themeSelEl.appendChild(btn);
+      });
+    }
+
+    /* ============================================================
+       Logique du jeu
+       ============================================================ */
+    function shuffle(arr) {
+      const a = [...arr]; for (let i = a.length-1; i>0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a;
+    }
+
+    function newRound() {
+      locked = false;
+      feedbackEl.textContent = '';
+      answersEl.innerHTML = '';
+
+      const items = THEMES[currentTheme].items;
+
+      // Sélectionne l'item cible
+      currentItem = items[Math.floor(Math.random() * items.length)];
+
+      // Affiche le mot anglais et son emoji
+      emojiEl.textContent    = currentItem.emoji;
+      englishEl.textContent  = currentItem.en;
+      frenchEl.textContent   = ''; // caché — c'est la réponse à trouver
+
+      // Prononce automatiquement le mot
+      setTimeout(() => speak(currentItem.en), 400);
+
+      // Construit les 4 réponses (traductions françaises)
+      const wrong = items.filter(i => i.fr !== currentItem.fr);
+      const shuffledWrong = shuffle(wrong).slice(0, 3);
+      const choices = shuffle([currentItem, ...shuffledWrong]);
+
+      choices.forEach(item => {
+        const btn = document.createElement('button');
+        btn.className = 'ans-btn';
+        btn.innerHTML = `<span class="ans-emoji">${item.emoji}</span><span>${item.fr}</span>`;
+        btn.setAttribute('aria-label', item.fr);
+        btn.style.animationDelay = '0s';
+
+        function pick(e) {
+          e.preventDefault();
+          if (locked) return;
+          locked = true;
+          answersEl.querySelectorAll('.ans-btn').forEach(b => b.disabled = true);
+
+          // Révèle la traduction sous le mot anglais
+          frenchEl.textContent = '= ' + currentItem.fr;
+
+          if (item.fr === currentItem.fr) {
+            goodCount++;
+            goodEl.textContent = goodCount;
+            btn.classList.add('correct');
+            playSuccess();
+            speak(currentItem.en); // répète le mot
+            const msgs = ['🌟 Bravo !', '✨ Super !', '🎉 Excellent !', '👏 Well done !'];
+            feedbackEl.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+            feedbackEl.style.color = '#4CAF50';
+            setTimeout(newRound, 2000);
+          } else {
+            badCount++;
+            badEl.textContent = badCount;
+            btn.classList.add('wrong');
+            playError();
+            feedbackEl.textContent = '❌ Non ! La bonne réponse est : ' + currentItem.fr;
+            feedbackEl.style.color = '#FF4B4B';
+            // Surligne la bonne réponse
+            answersEl.querySelectorAll('.ans-btn').forEach(b => {
+              const label = b.getAttribute('aria-label');
+              if (label === currentItem.fr) b.classList.add('correct');
+            });
+            setTimeout(newRound, 2200);
+          }
+        }
+
+        btn.addEventListener('click',      pick, { passive: false });
+        btn.addEventListener('touchstart', pick, { passive: false });
+        answersEl.appendChild(btn);
+      });
+    }
+
+    /* Bouton "Écouter" */
+    speakBtn.addEventListener('click', () => speak(currentItem ? currentItem.en : ''));
+    speakBtn.addEventListener('touchstart', e => { e.preventDefault(); speak(currentItem ? currentItem.en : ''); }, { passive: false });
+
+    /* ---- Démarrage ---- */
+    initSpeech();
+    buildThemeSelector();
+    newRound();
+  </script>
+</body>
+</html>

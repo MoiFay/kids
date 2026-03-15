@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>🎨 Trouver la couleur</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* ---- Styles spécifiques au jeu des couleurs ---- */
+    body { background: linear-gradient(160deg, #fff0f6, #fff9e8); min-height: 100vh; }
+
+    /* Consigne */
+    #consigne {
+      text-align: center;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.6rem;
+      color: #444;
+      padding: 12px 16px 4px;
+    }
+
+    /* Grand emoji / mot de couleur demandé */
+    #color-asked {
+      text-align: center;
+      font-family: 'Fredoka One', cursive;
+      font-size: 3rem;
+      padding: 8px;
+      min-height: 70px;
+    }
+
+    /* Grille de cercles de couleur à cliquer */
+    #color-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      padding: 16px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* Cercle / bouton de couleur */
+    .color-btn {
+      border: none;
+      border-radius: 24px;
+      height: 120px;
+      cursor: pointer;
+      box-shadow: 0 6px 0 rgba(0,0,0,.2);
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.3rem;
+      color: white;
+      text-shadow: 0 2px 6px rgba(0,0,0,.35);
+      transition: transform .15s, box-shadow .15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .color-btn:active {
+      transform: translateY(5px);
+      box-shadow: 0 1px 0 rgba(0,0,0,.2);
+    }
+
+    /* Effet de vague au clic */
+    .color-btn::after {
+      content: '';
+      position: absolute;
+      width: 150%;
+      height: 150%;
+      background: rgba(255,255,255,.25);
+      border-radius: 50%;
+      transform: scale(0);
+      transition: transform .4s ease-out, opacity .4s;
+      opacity: 0;
+    }
+    .color-btn.ripple::after {
+      transform: scale(1);
+      opacity: 0;
+    }
+
+    /* Feedback */
+    #feedback {
+      text-align: center;
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.4rem;
+      min-height: 60px;
+      padding: 8px;
+    }
+
+    /* Score */
+    #score-zone {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.3rem;
+      padding: 8px 16px 0;
+    }
+    #score-zone span {
+      background: white;
+      border-radius: 50px;
+      padding: 4px 16px;
+      box-shadow: 0 3px 8px rgba(0,0,0,.1);
+    }
+
+    /* Animation sur la bonne réponse */
+    @keyframes correct-flash {
+      0%, 100% { transform: scale(1);   }
+      50%       { transform: scale(1.12);}
+    }
+    .correct-flash { animation: correct-flash .35s ease; }
+  </style>
+</head>
+<body>
+
+  <nav class="nav-bar">
+    <a href="index.html" class="btn-home" aria-label="Retour au menu">🏠</a>
+    <span class="nav-title">🎨 Les Couleurs !</span>
+  </nav>
+
+  <!-- Score -->
+  <div id="score-zone">
+    ✅ <span id="good">0</span> &nbsp; ❌ <span id="bad">0</span>
+  </div>
+
+  <!-- Consigne -->
+  <p id="consigne">Clique sur la couleur !</p>
+
+  <!-- Couleur demandée affichée en gros -->
+  <div id="color-asked" aria-live="polite"></div>
+
+  <!-- Grille des boutons -->
+  <div id="color-grid" role="list" aria-label="Choix de couleurs"></div>
+
+  <!-- Feedback -->
+  <div id="feedback" aria-live="polite"></div>
+
+  <script>
+    /* ============================================================
+       Jeu : Trouver la bonne couleur
+       ============================================================
+       Principe : on demande une couleur par son NOM en français.
+       L'enfant doit cliquer sur le bon rectangle coloré.
+       ============================================================ */
+
+    // Définition des couleurs (nom, code hex, emoji de confirmation)
+    const COLORS = [
+      { name: 'Rouge',   hex: '#FF4B4B', emoji: '🔴' },
+      { name: 'Bleu',    hex: '#2196F3', emoji: '🔵' },
+      { name: 'Jaune',   hex: '#FFD700', emoji: '🟡' },
+      { name: 'Vert',    hex: '#4CAF50', emoji: '🟢' },
+      { name: 'Orange',  hex: '#FF8C00', emoji: '🟠' },
+      { name: 'Violet',  hex: '#9C27B0', emoji: '🟣' },
+      { name: 'Rose',    hex: '#FF69B4', emoji: '🩷' },
+      { name: 'Blanc',   hex: '#F0F0F0', emoji: '⚪' },
+    ];
+
+    let goodCount = 0;
+    let badCount  = 0;
+    let targetIndex = 0;
+    let choices = [];
+
+    const consigneEl = document.getElementById('consigne');
+    const askedEl    = document.getElementById('color-asked');
+    const gridEl     = document.getElementById('color-grid');
+    const feedbackEl = document.getElementById('feedback');
+    const goodEl     = document.getElementById('good');
+    const badEl      = document.getElementById('bad');
+
+    /* --- Mélange un tableau (Fisher-Yates) --- */
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    /* --- Lance une nouvelle question --- */
+    function newRound() {
+      feedbackEl.textContent = '';
+
+      // Choisit 4 couleurs aléatoires pour les boutons
+      const shuffled = shuffle(COLORS);
+      choices = shuffled.slice(0, 4);
+
+      // La cible est l'une des 4 (au hasard)
+      targetIndex = Math.floor(Math.random() * 4);
+      const target = choices[targetIndex];
+
+      // Affiche la consigne avec le nom en gros
+      askedEl.textContent = target.emoji + ' ' + target.name + ' ' + target.emoji;
+      askedEl.style.color = target.hex;
+
+      // Crée les boutons
+      gridEl.innerHTML = '';
+      choices.forEach((col, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'color-btn';
+        btn.style.background = col.hex;
+        btn.style.color = (col.hex === '#F0F0F0') ? '#888' : 'white';
+        // Pour le blanc, afficher le nom en gris
+        btn.textContent = col.name;
+        btn.setAttribute('aria-label', `Couleur ${col.name}`);
+
+        function handleClick(e) {
+          e.preventDefault();
+          if (btn.disabled) return;
+          // Désactive tous les boutons
+          gridEl.querySelectorAll('.color-btn').forEach(b => b.disabled = true);
+
+          if (i === targetIndex) {
+            // Bonne réponse
+            goodCount++;
+            goodEl.textContent = goodCount;
+            feedbackEl.textContent = '🌟 Bravo ! C\'est bien le ' + target.name + ' !';
+            feedbackEl.style.color = '#4CAF50';
+            btn.classList.add('correct-flash');
+            setTimeout(newRound, 1400);
+          } else {
+            // Mauvaise réponse — montre la bonne couleur
+            badCount++;
+            badEl.textContent = badCount;
+            feedbackEl.textContent = '❌ Non ! Le ' + target.name + ' c\'est ici 👇';
+            feedbackEl.style.color = '#FF4B4B';
+            // Surligne le bon bouton
+            gridEl.querySelectorAll('.color-btn')[targetIndex].style.outline = '5px solid white';
+            setTimeout(newRound, 1800);
+          }
+        }
+
+        btn.addEventListener('click',      handleClick, { passive: false });
+        btn.addEventListener('touchstart', handleClick, { passive: false });
+        gridEl.appendChild(btn);
+      });
+    }
+
+    // Démarrage
+    newRound();
+  </script>
+</body>
+</html>
