@@ -271,7 +271,6 @@
     let choices       = [], targetIdx = 0;
     let locked        = false;
     let audioUnlocked = false;
-    let audioCtx      = null;
     let frVoice       = null;  // voix française pour SpeechSynthesis
 
     /* ---- Éléments DOM ---- */
@@ -295,6 +294,21 @@
          On ne cancel() JAMAIS — on laisse iOS gérer la queue.
          On ne passe PAS de .voice — instable sur iOS.
        ============================================================ */
+    /* ============================================================
+       AUDIOCTX — déverrouillage iOS/Android
+       ============================================================ */
+    let audioCtx = null;
+
+    function unlockAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      try {
+        const b = audioCtx.createBuffer(1, 1, 22050);
+        const s = audioCtx.createBufferSource();
+        s.buffer = b; s.connect(audioCtx.destination); s.start(0);
+      } catch(e) {}
+    }
+
     function speak(text, onEnd) {
       if (!window.speechSynthesis) { if (onEnd) onEnd(); return; }
       const utter  = new SpeechSynthesisUtterance(text);
@@ -454,12 +468,14 @@
        appeler unlockAudio() ET speak() ici en toute sécurité.
        ============================================================ */
     function handleUnlock(e) {
-      /* speak() ABSOLUMENT EN PREMIER — règle iOS */
-      speak('Écoute bien !');
+      /* 1. newRound() est synchrone — il remplit choices/targetIdx */
+      newRound();
+      /* 2. speak() directement dans le handler (iOS autorise car sync) */
+      speak(consigneText(choices[targetIdx]));
+      /* 3. Le reste */
       e.preventDefault();
       unlockAudio();
       unlockOverlay.classList.add('hidden');
-      newRound();
     }
     btnUnlock.addEventListener('click',      handleUnlock, { passive: false });
     btnUnlock.addEventListener('touchstart', handleUnlock, { passive: false });
