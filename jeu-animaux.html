@@ -289,35 +289,20 @@
        Les navigateurs mobiles chargent les voix de façon asynchrone.
        ============================================================ */
     /* ============================================================
-       SpeechSynthesis — robuste iOS Safari
-       1. PAS de utter.voice — on utilise uniquement utter.lang
-       2. PAS de cancel() systématique
-       3. Keepalive anti-gel iOS
-       4. speak() indépendant de audioUnlocked
+       SpeechSynthesis — règle iOS absolue :
+         speak() doit être le 1er appel dans le handler,
+         appelé de façon 100% synchrone depuis le geste.
+         On ne cancel() JAMAIS — on laisse iOS gérer la queue.
+         On ne passe PAS de .voice — instable sur iOS.
        ============================================================ */
-    function loadVoices() { /* voix choisies automatiquement via lang */ }
-    if (window.speechSynthesis) {
-      window.speechSynthesis.onvoiceschanged = loadVoices;
-    }
-
-    setInterval(() => {
-      if (!window.speechSynthesis || window.speechSynthesis.speaking) return;
-      window.speechSynthesis.pause();
-      window.speechSynthesis.resume();
-    }, 10000);
-
     function speak(text, onEnd) {
       if (!window.speechSynthesis) { if (onEnd) onEnd(); return; }
-      try {
-        if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
-        const utter  = new SpeechSynthesisUtterance(text);
-        utter.lang   = 'fr-FR';
-        utter.rate   = 0.88;
-        utter.pitch  = 1.15;
-        if (onEnd)  utter.onend   = onEnd;
-        utter.onerror = () => { if (onEnd) onEnd(); };
-        window.speechSynthesis.speak(utter);
-      } catch(e) { if (onEnd) onEnd(); }
+      const utter  = new SpeechSynthesisUtterance(text);
+      utter.lang   = 'fr-FR';
+      utter.rate   = 0.82;
+      utter.pitch  = 1.1;
+      if (onEnd) { utter.onend = onEnd; utter.onerror = () => onEnd(); }
+      window.speechSynthesis.speak(utter);
     }
 
     /* ============================================================
@@ -451,13 +436,14 @@
 
     /* ---- Bouton 🔊 : prononce le nom de l'animal cible ---- */
     function handleSpeakBtn(e) {
-      e.preventDefault();
-      resumeCtx();
+      /* speak() EN PREMIER */
       if (choices.length > 0) {
         const target = choices[targetIdx];
         btnSpeak.classList.add('speaking');
         speak(consigneText(target), () => btnSpeak.classList.remove('speaking'));
       }
+      e.preventDefault();
+      resumeCtx();
     }
     btnSpeak.addEventListener('click',      handleSpeakBtn, { passive: false });
     btnSpeak.addEventListener('touchstart', handleSpeakBtn, { passive: false });
@@ -468,13 +454,12 @@
        appeler unlockAudio() ET speak() ici en toute sécurité.
        ============================================================ */
     function handleUnlock(e) {
+      /* speak() ABSOLUMENT EN PREMIER — règle iOS */
+      speak('Écoute bien !');
       e.preventDefault();
-      unlockAudio();                          // déverrouille AudioContext + SpeechSynthesis
-      unlockOverlay.classList.add('hidden');  // masque l'overlay
-      newRound();                             // prépare la première question
-      /* Prononce la consigne directement depuis ce tap */
-      const target = choices[targetIdx];
-      speak(consigneText(target));
+      unlockAudio();
+      unlockOverlay.classList.add('hidden');
+      newRound();
     }
     btnUnlock.addEventListener('click',      handleUnlock, { passive: false });
     btnUnlock.addEventListener('touchstart', handleUnlock, { passive: false });

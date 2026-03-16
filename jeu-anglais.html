@@ -8,213 +8,110 @@
   <style>
     body { background: linear-gradient(160deg, #FFF8E1, #E8EAF6); min-height: 100vh; }
 
-    /* ---- Overlay "Appuie pour commencer" (déverrouillag audio mobile) ---- */
+    /* ---- Overlay de démarrage ---- */
     #unlock-overlay {
-      position: fixed;
-      inset: 0;
+      position: fixed; inset: 0;
       background: linear-gradient(160deg, #3F51B5, #1A237E);
       z-index: 999;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-      cursor: pointer;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 20px; cursor: pointer;
     }
     #unlock-overlay.hidden { display: none; }
-
-    #unlock-overlay .ul-emoji {
-      font-size: 5rem;
-      animation: bounce 1.5s infinite;
-    }
+    #unlock-overlay .ul-emoji { font-size: 5rem; animation: bounce 1.5s infinite; }
     #unlock-overlay h2 {
-      font-family: 'Fredoka One', cursive;
-      color: white;
-      font-size: 2.2rem;
-      text-align: center;
-      padding: 0 24px;
+      font-family: 'Fredoka One', cursive; color: white;
+      font-size: 2.2rem; text-align: center; padding: 0 24px;
     }
     #unlock-overlay p {
-      color: rgba(255,255,255,.75);
-      font-family: 'Nunito', sans-serif;
-      font-size: 1.1rem;
-      text-align: center;
-      padding: 0 24px;
+      color: rgba(255,255,255,.75); font-family: 'Nunito', sans-serif;
+      font-size: 1.1rem; text-align: center; padding: 0 24px;
     }
     #unlock-overlay .ul-btn {
-      background: #FFD700;
-      color: #1A237E;
-      border: none;
-      border-radius: 50px;
-      padding: 18px 44px;
-      font-family: 'Fredoka One', cursive;
-      font-size: 1.6rem;
-      cursor: pointer;
-      box-shadow: 0 6px 0 rgba(0,0,0,.25);
-      animation: star-pulse 1.2s infinite;
-      min-width: 200px;
-      min-height: 70px;
+      background: #FFD700; color: #1A237E; border: none; border-radius: 50px;
+      padding: 18px 44px; font-family: 'Fredoka One', cursive; font-size: 1.6rem;
+      cursor: pointer; box-shadow: 0 6px 0 rgba(0,0,0,.25);
+      animation: star-pulse 1.2s infinite; min-width: 200px; min-height: 70px;
     }
 
     /* ---- Sélecteur de thème ---- */
     #theme-selector {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 10px;
-      padding: 10px 14px;
+      display: flex; flex-wrap: wrap; justify-content: center;
+      gap: 10px; padding: 10px 14px;
     }
-
     .theme-btn {
-      border: 3px solid transparent;
-      border-radius: 50px;
-      padding: 8px 18px;
-      background: white;
-      font-family: 'Fredoka One', cursive;
-      font-size: 1rem;
-      cursor: pointer;
-      box-shadow: 0 3px 6px rgba(0,0,0,.12);
-      color: #444;
+      border: 3px solid transparent; border-radius: 50px; padding: 8px 18px;
+      background: white; font-family: 'Fredoka One', cursive; font-size: 1rem;
+      cursor: pointer; box-shadow: 0 3px 6px rgba(0,0,0,.12); color: #444;
       transition: transform .12s, box-shadow .12s;
     }
-
     .theme-btn:active  { transform: scale(.95); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
     .theme-btn.active  { background: #3F51B5; color: white; border-color: #1A237E; }
 
-    /* ---- Mot / phrase à apprendre ---- */
-    #word-display {
-      text-align: center;
-      padding: 10px 16px 4px;
-    }
-
+    /* ---- Mot affiché ---- */
+    #word-display { text-align: center; padding: 10px 16px 4px; }
     #word-english {
-      font-family: 'Fredoka One', cursive;
-      font-size: 2.6rem;
-      color: #1A237E;
-      display: block;
+      font-family: 'Fredoka One', cursive; font-size: 2.6rem;
+      color: #1A237E; display: block;
+    }
+    #word-french { font-size: 1.1rem; color: #888; display: block; margin-top: 2px; }
+    #word-emoji  {
+      font-size: 4rem; display: block; margin: 6px 0; animation: bounce 2s infinite;
     }
 
-    #word-french {
-      font-size: 1.1rem;
-      color: #888;
-      display: block;
-      margin-top: 2px;
-    }
-
-    #word-emoji {
-      font-size: 4rem;
-      display: block;
-      margin: 6px 0;
-      animation: bounce 2s infinite;
-    }
-
-    /* ---- Bouton de prononciation ---- */
+    /* ---- Bouton 🔊 ---- */
     #btn-speak {
-      display: block;
-      margin: 0 auto 8px;
-      background: #3F51B5;
-      color: white;
-      border: none;
-      border-radius: 50px;
-      padding: 12px 28px;
-      font-family: 'Fredoka One', cursive;
-      font-size: 1.3rem;
-      cursor: pointer;
-      box-shadow: 0 5px 0 rgba(0,0,0,.2);
-      transition: transform .12s, box-shadow .12s;
-      min-height: 56px;
+      display: block; margin: 0 auto 8px;
+      background: #3F51B5; color: white; border: none; border-radius: 50px;
+      padding: 12px 28px; font-family: 'Fredoka One', cursive; font-size: 1.3rem;
+      cursor: pointer; box-shadow: 0 5px 0 rgba(0,0,0,.2);
+      transition: transform .12s, box-shadow .12s; min-height: 56px;
     }
-    #btn-speak:active {
-      transform: translateY(4px);
-      box-shadow: 0 1px 0 rgba(0,0,0,.2);
-    }
-    #btn-speak.speaking { background: #FF8C00; }
-
-    /* Pulse pour inviter à taper le bouton écouter */
+    #btn-speak:active { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0,0,0,.2); }
+    #btn-speak.speaking { background: #FF8C00; animation: none !important; }
     @keyframes speak-pulse {
       0%, 100% { box-shadow: 0 5px 0 rgba(0,0,0,.2), 0 0 0 0 rgba(63,81,181,.4); }
       50%       { box-shadow: 0 5px 0 rgba(0,0,0,.2), 0 0 0 12px rgba(63,81,181,0); }
     }
     #btn-speak:not(.speaking) { animation: speak-pulse 2s infinite; }
 
-    /* ---- Grille de réponses ---- */
+    /* ---- Réponses ---- */
     #answers {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-      padding: 8px 16px 24px;
-      max-width: 480px;
-      margin: 0 auto;
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: 12px; padding: 8px 16px 24px; max-width: 480px; margin: 0 auto;
     }
-
     .ans-btn {
-      border: 3px solid transparent;
-      border-radius: 20px;
-      background: white;
-      box-shadow: 0 5px 0 rgba(0,0,0,.13);
-      cursor: pointer;
-      padding: 14px 8px;
-      font-family: 'Fredoka One', cursive;
-      font-size: 1.15rem;
-      color: #333;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      min-height: 100px;
-      transition: transform .12s, box-shadow .12s;
+      border: 3px solid transparent; border-radius: 20px; background: white;
+      box-shadow: 0 5px 0 rgba(0,0,0,.13); cursor: pointer; padding: 14px 8px;
+      font-family: 'Fredoka One', cursive; font-size: 1.15rem; color: #333;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      min-height: 100px; transition: transform .12s, box-shadow .12s;
     }
-    .ans-btn:active {
-      transform: translateY(4px);
-      box-shadow: 0 1px 0 rgba(0,0,0,.13);
-    }
+    .ans-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0,0,0,.13); }
     .ans-btn .ans-emoji { font-size: 2.2rem; }
     .ans-btn.correct { background: #C8E6C9; border-color: #4CAF50; }
     .ans-btn.wrong   { background: #FFCDD2; border-color: #FF4B4B; }
 
     /* ---- Score ---- */
     #score-zone {
-      display: flex;
-      justify-content: center;
-      gap: 14px;
-      font-family: 'Fredoka One', cursive;
-      font-size: 1.2rem;
-      padding: 6px 16px 0;
+      display: flex; justify-content: center; gap: 14px;
+      font-family: 'Fredoka One', cursive; font-size: 1.2rem; padding: 6px 16px 0;
     }
     #score-zone span {
-      background: white;
-      border-radius: 50px;
-      padding: 4px 14px;
+      background: white; border-radius: 50px; padding: 4px 14px;
       box-shadow: 0 3px 8px rgba(0,0,0,.1);
     }
 
     /* ---- Feedback ---- */
     #feedback {
-      text-align: center;
-      font-family: 'Fredoka One', cursive;
-      font-size: 1.8rem;
-      min-height: 52px;
-      padding: 4px;
+      text-align: center; font-family: 'Fredoka One', cursive;
+      font-size: 1.8rem; min-height: 52px; padding: 4px;
     }
-
-    /* ---- Info SpeechSynthesis ---- */
-    #speech-info {
-      text-align: center;
-      font-size: .85rem;
-      color: #bbb;
-      padding: 2px 16px 6px;
-    }
+    #speech-info { text-align: center; font-size: .85rem; color: #bbb; padding: 2px 16px 6px; }
   </style>
 </head>
 <body>
 
-  <!--
-    ============================================================
-    OVERLAY "Appuie pour commencer"
-    Obligatoire sur iOS/Android pour débloquer AudioContext
-    et SpeechSynthesis (politique autoplay des navigateurs).
-    ============================================================
-  -->
+  <!-- Overlay démarrage -->
   <div id="unlock-overlay" role="dialog" aria-modal="true" aria-label="Démarrer le jeu">
     <span class="ul-emoji" aria-hidden="true">🇬🇧</span>
     <h2>English Time !</h2>
@@ -227,63 +124,45 @@
     <span class="nav-title">🇬🇧 English Time !</span>
   </nav>
 
-  <!-- Score -->
-  <div id="score-zone">
-    ✅ <span id="good">0</span> &nbsp; ❌ <span id="bad">0</span>
-  </div>
+  <div id="score-zone">✅ <span id="good">0</span> &nbsp; ❌ <span id="bad">0</span></div>
 
-  <!-- Sélecteur de thème -->
   <div id="theme-selector" role="group" aria-label="Choisir un thème"></div>
 
-  <!-- Affichage du mot à apprendre -->
   <div id="word-display">
-    <span id="word-emoji" aria-hidden="true"></span>
+    <span id="word-emoji"   aria-hidden="true"></span>
     <span id="word-english" aria-live="polite"></span>
     <span id="word-french"></span>
   </div>
 
-  <!-- Bouton prononcer -->
   <button id="btn-speak">🔊 Écouter</button>
   <p id="speech-info"></p>
-
-  <!-- Feedback -->
   <div id="feedback" aria-live="polite"></div>
-
-  <!-- Réponses -->
-  <div id="answers" role="group" aria-label="Choisir la bonne réponse"></div>
+  <div id="answers"  role="group" aria-label="Choisir la bonne réponse"></div>
 
   <script>
     /* ============================================================
-       Jeu : Apprendre l'anglais
-       ============================================================
-       Thèmes disponibles :
-         1. Compter (numbers)
-         2. Couleurs (colors)
-         3. Jours de la semaine (days)
-         4. Salutations (greetings)
-         5. Se présenter (introductions)
-
-       Fonctionnement :
-         - On affiche le mot EN anglais avec son emoji
-         - On propose 4 traductions françaises
-         - L'enfant doit choisir la bonne traduction
-         - Le mot est prononcé en anglais via SpeechSynthesis
+       JEU ANGLAIS — v3
+       Fix iOS SpeechSynthesis :
+         • speak() est le TOUT PREMIER appel dans chaque handler
+         • Jamais de cancel() — on laisse iOS gérer
+         • Jamais de .voice — on utilise uniquement .lang
+         • AudioContext et SpeechSynthesis sont indépendants
        ============================================================ */
 
     const THEMES = {
       numbers: {
         label: '🔢 Compter',
         items: [
-          { en: 'One',   fr: 'Un',    emoji: '1️⃣' },
-          { en: 'Two',   fr: 'Deux',  emoji: '2️⃣' },
-          { en: 'Three', fr: 'Trois', emoji: '3️⃣' },
-          { en: 'Four',  fr: 'Quatre',emoji: '4️⃣' },
-          { en: 'Five',  fr: 'Cinq',  emoji: '5️⃣' },
-          { en: 'Six',   fr: 'Six',   emoji: '6️⃣' },
-          { en: 'Seven', fr: 'Sept',  emoji: '7️⃣' },
-          { en: 'Eight', fr: 'Huit',  emoji: '8️⃣' },
-          { en: 'Nine',  fr: 'Neuf',  emoji: '9️⃣' },
-          { en: 'Ten',   fr: 'Dix',   emoji: '🔟' },
+          { en: 'One',   fr: 'Un',     emoji: '1️⃣' },
+          { en: 'Two',   fr: 'Deux',   emoji: '2️⃣' },
+          { en: 'Three', fr: 'Trois',  emoji: '3️⃣' },
+          { en: 'Four',  fr: 'Quatre', emoji: '4️⃣' },
+          { en: 'Five',  fr: 'Cinq',   emoji: '5️⃣' },
+          { en: 'Six',   fr: 'Six',    emoji: '6️⃣' },
+          { en: 'Seven', fr: 'Sept',   emoji: '7️⃣' },
+          { en: 'Eight', fr: 'Huit',   emoji: '8️⃣' },
+          { en: 'Nine',  fr: 'Neuf',   emoji: '9️⃣' },
+          { en: 'Ten',   fr: 'Dix',    emoji: '🔟' },
         ]
       },
       colors: {
@@ -315,47 +194,39 @@
       greetings: {
         label: '👋 Bonjour',
         items: [
-          { en: 'Hello',         fr: 'Bonjour',    emoji: '👋' },
-          { en: 'Good morning',  fr: 'Bonjour (matin)', emoji: '🌅' },
-          { en: 'Good night',    fr: 'Bonne nuit', emoji: '🌙' },
-          { en: 'Goodbye',       fr: 'Au revoir',  emoji: '👋' },
-          { en: 'How are you?',  fr: 'Comment vas-tu ?', emoji: '😊' },
-          { en: 'Very well',     fr: 'Très bien',  emoji: '😄' },
-          { en: 'Thank you',     fr: 'Merci',      emoji: '🙏' },
-          { en: 'Please',        fr: 'S\'il te plaît', emoji: '✨' },
+          { en: 'Hello',        fr: 'Bonjour',        emoji: '👋' },
+          { en: 'Good morning', fr: 'Bonjour matin',  emoji: '🌅' },
+          { en: 'Good night',   fr: 'Bonne nuit',     emoji: '🌙' },
+          { en: 'Goodbye',      fr: 'Au revoir',      emoji: '👋' },
+          { en: 'How are you',  fr: 'Comment vas-tu', emoji: '😊' },
+          { en: 'Very well',    fr: 'Très bien',      emoji: '😄' },
+          { en: 'Thank you',    fr: 'Merci',          emoji: '🙏' },
+          { en: 'Please',       fr: 'S\'il te plaît', emoji: '✨' },
         ]
       },
       intro: {
         label: '🙋 Je me présente',
         items: [
-          { en: 'My name is…',  fr: 'Je m\'appelle…', emoji: '🙋' },
-          { en: 'I am …',       fr: 'J\'ai … ans',    emoji: '🎂' },
-          { en: 'I like…',      fr: 'J\'aime…',       emoji: '❤️' },
-          { en: 'I live in…',   fr: 'J\'habite à…',   emoji: '🏠' },
-          { en: 'I am happy',   fr: 'Je suis heureux',emoji: '😄' },
-          { en: 'I am sad',     fr: 'Je suis triste', emoji: '😢' },
-          { en: 'Yes',          fr: 'Oui',            emoji: '✅' },
-          { en: 'No',           fr: 'Non',            emoji: '❌' },
+          { en: 'My name is', fr: 'Je m\'appelle',     emoji: '🙋' },
+          { en: 'I am',       fr: 'J\'ai … ans',       emoji: '🎂' },
+          { en: 'I like',     fr: 'J\'aime',           emoji: '❤️' },
+          { en: 'I live in',  fr: 'J\'habite à',       emoji: '🏠' },
+          { en: 'I am happy', fr: 'Je suis heureux',   emoji: '😄' },
+          { en: 'I am sad',   fr: 'Je suis triste',    emoji: '😢' },
+          { en: 'Yes',        fr: 'Oui',               emoji: '✅' },
+          { en: 'No',         fr: 'Non',               emoji: '❌' },
         ]
       }
     };
 
-    /* ============================================================
-       PARAMÈTRES GLOBAUX
-       ============================================================ */
+    /* ---- État ---- */
     let currentTheme = 'numbers';
     let currentItem  = null;
     let goodCount    = 0, badCount = 0;
     let locked       = false;
-    let audioUnlocked = false;   // true après le premier geste utilisateur
+    let audioCtx     = null;
 
-    /* --- AudioContext PARTAGÉ (une seule instance = obligatoire sur mobile) --- */
-    let audioCtx = null;
-
-    /* --- Voix anglaise pour SpeechSynthesis --- */
-    let engVoice = null;
-
-    /* ---- Éléments DOM ---- */
+    /* ---- DOM ---- */
     const unlockOverlay = document.getElementById('unlock-overlay');
     const btnUnlock     = document.getElementById('btn-unlock');
     const themeSelEl    = document.getElementById('theme-selector');
@@ -370,132 +241,71 @@
     const speechInfoEl  = document.getElementById('speech-info');
 
     /* ============================================================
-       DÉVERROUILLAGE AUDIO — doit être appelé depuis un tap direct
+       SPEECHSYNTHESIS — règle iOS absolue
        ============================================================
-       iOS et Android refusent AudioContext et SpeechSynthesis
-       si aucun geste utilisateur n'a eu lieu au préalable.
-       L'overlay force ce premier geste.
+       Sur iOS Safari, speechSynthesis.speak() DOIT être :
+         1. le tout premier appel dans le handler du geste
+         2. 100% synchrone (aucun if / await / intermédiaire avant)
+         3. Sans .voice assignée (instable sur iOS)
+         4. Sans cancel() préalable (tue la queue iOS)
        ============================================================ */
-    function unlockAudio() {
-      /* 1. Crée (ou reprend) l'AudioContext depuis le geste */
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      /* iOS met l'AudioContext en "suspended" au démarrage :
-         il faut le reprendre DANS le handler du geste. */
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-
-      /* 2. Déverrouille SpeechSynthesis sur iOS avec une utterance silencieuse.
-         iOS requiert un premier speak() synchrone dans un event handler. */
-      if (window.speechSynthesis) {
-        const silent = new SpeechSynthesisUtterance(' ');
-        silent.volume = 0;       // silencieuse
-        silent.lang   = 'en-GB';
-        window.speechSynthesis.speak(silent);
-      }
-
-      audioUnlocked = true;
-    }
-
-    /* ============================================================
-       SPEECHSYNTHESIS — chargement des voix
-       ============================================================ */
-    /* ============================================================
-       SpeechSynthesis — robuste iOS Safari
-       ============================================================
-       1. speak() indépendant de audioUnlocked
-       2. PAS de utter.voice — instable sur iOS (on utilise utter.lang)
-       3. PAS de cancel() systématique — tue la queue iOS
-       4. Keepalive : iOS gèle speechSynthesis après ~15s sans appel
-       ============================================================ */
-    let speechReady = false;
-
-    function loadVoices() {
-      if (!window.speechSynthesis) return;
-      const voices = window.speechSynthesis.getVoices();
-      if (voices.length > 0) {
-        speechReady = true;
-        speechInfoEl.textContent = '🔊 Appuie sur le bouton pour entendre le mot en anglais !';
-      }
-    }
-    if (window.speechSynthesis) {
-      loadVoices();
-      window.speechSynthesis.onvoiceschanged = loadVoices;
-    }
-
-    /* Keepalive : empêche iOS de geler speechSynthesis */
-    setInterval(() => {
-      if (!window.speechSynthesis || window.speechSynthesis.speaking) return;
-      window.speechSynthesis.pause();
-      window.speechSynthesis.resume();
-    }, 10000);
-
     function speak(text) {
       if (!window.speechSynthesis) return;
-      try {
-        if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
-        const utter = new SpeechSynthesisUtterance(text);
-        utter.lang  = 'en-GB';   /* iOS choisit la voix selon lang */
-        utter.rate  = 0.85;
-        utter.pitch = 1.1;
-        /* ⚠️ PAS de utter.voice = ... → instable sur iOS Safari */
-        speakBtn.classList.add('speaking');
-        utter.onend   = () => speakBtn.classList.remove('speaking');
-        utter.onerror = () => speakBtn.classList.remove('speaking');
-        window.speechSynthesis.speak(utter);
-      } catch(e) { speakBtn.classList.remove('speaking'); }
+      const utter  = new SpeechSynthesisUtterance(text);
+      utter.lang   = 'en-GB';
+      utter.rate   = 0.82;
+      utter.pitch  = 1.1;
+      speakBtn.classList.add('speaking');
+      utter.onend   = () => speakBtn.classList.remove('speaking');
+      utter.onerror = () => speakBtn.classList.remove('speaking');
+      window.speechSynthesis.speak(utter);
     }
 
     /* ============================================================
-       SONS AudioContext — succès et erreur
-       ============================================================
-       On réutilise le même audioCtx pour éviter le blocage mobile.
+       AUDIOCTX — sons de succès et d'erreur
        ============================================================ */
+    function unlockAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      try {
+        const b = audioCtx.createBuffer(1, 1, 22050);
+        const s = audioCtx.createBufferSource();
+        s.buffer = b; s.connect(audioCtx.destination); s.start(0);
+      } catch(e) {}
+    }
+
     function playSuccess() {
       if (!audioCtx) return;
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      const notes = [523, 659, 784, 1046];
-      notes.forEach((freq, i) => {
-        const t    = audioCtx.currentTime + i * 0.12;
-        const osc  = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.type            = 'sine';
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.3, t);
-        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-        osc.start(t);
-        osc.stop (t + 0.22);
+      [523, 659, 784, 1046].forEach((f, i) => {
+        const t = audioCtx.currentTime + i * 0.12;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.25, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        o.start(t); o.stop(t + 0.22);
       });
     }
 
     function playError() {
       if (!audioCtx) return;
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      const t    = audioCtx.currentTime;
-      const osc  = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.type            = 'sawtooth';
-      osc.frequency.value = 180;
-      gain.gain.setValueAtTime(0.25, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-      osc.start(t);
-      osc.stop (t + 0.42);
+      const t = audioCtx.currentTime;
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      o.type = 'sawtooth'; o.frequency.value = 180;
+      g.gain.setValueAtTime(0.22, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      o.start(t); o.stop(t + 0.42);
     }
 
     /* ============================================================
-       INTERFACE THÈMES
+       SÉLECTEUR DE THÈME
        ============================================================ */
     function buildThemeSelector() {
       themeSelEl.innerHTML = '';
       Object.entries(THEMES).forEach(([key, theme]) => {
         const btn = document.createElement('button');
-        btn.className = 'theme-btn' + (key === currentTheme ? ' active' : '');
+        btn.className   = 'theme-btn' + (key === currentTheme ? ' active' : '');
         btn.textContent = theme.label;
 
         function selectTheme(e) {
@@ -533,16 +343,11 @@
 
       emojiEl.textContent   = currentItem.emoji;
       englishEl.textContent = currentItem.en;
-      frenchEl.textContent  = ''; // masqué — c'est la réponse
+      frenchEl.textContent  = '';
 
-      /* ⚠️  PAS de setTimeout(() => speak(...)) ici !
-         Sur iOS le speak() doit venir d'un geste direct.
-         L'enfant appuie sur 🔊 pour entendre le mot. */
-
-      // Construit les 4 réponses
-      const wrong        = items.filter(i => i.fr !== currentItem.fr);
-      const shuffledWrong = shuffle(wrong).slice(0, 3);
-      const choices       = shuffle([currentItem, ...shuffledWrong]);
+      /* Construit les 4 réponses */
+      const wrong   = items.filter(i => i.fr !== currentItem.fr);
+      const choices = shuffle([currentItem, ...shuffle(wrong).slice(0, 3)]);
 
       choices.forEach(item => {
         const btn = document.createElement('button');
@@ -551,11 +356,16 @@
         btn.setAttribute('aria-label', item.fr);
 
         function pick(e) {
+          /* ── speak() EN TOUT PREMIER — règle iOS absolue ── */
+          if (item.fr === currentItem.fr) {
+            speak(currentItem.en);
+          } else {
+            speak(currentItem.en); /* on ré-énonce le mot pour apprendre */
+          }
+
           e.preventDefault();
           if (locked) return;
           locked = true;
-
-          /* Resume AudioContext si suspendu (peut arriver après inactivité) */
           if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
           answersEl.querySelectorAll('.ans-btn').forEach(b => b.disabled = true);
@@ -566,22 +376,21 @@
             goodEl.textContent = goodCount;
             btn.classList.add('correct');
             playSuccess();
-            speak(currentItem.en); // ✅ appelé directement depuis le tap
             const msgs = ['🌟 Bravo !', '✨ Super !', '🎉 Excellent !', '👏 Well done !'];
             feedbackEl.textContent = msgs[Math.floor(Math.random() * msgs.length)];
             feedbackEl.style.color = '#4CAF50';
-            setTimeout(newRound, 2000);
+            setTimeout(newRound, 2200);
           } else {
             badCount++;
             badEl.textContent = badCount;
             btn.classList.add('wrong');
             playError();
-            feedbackEl.textContent = '❌ Non ! La bonne réponse est : ' + currentItem.fr;
+            feedbackEl.textContent = '❌ La bonne réponse : ' + currentItem.fr;
             feedbackEl.style.color = '#FF4B4B';
             answersEl.querySelectorAll('.ans-btn').forEach(b => {
               if (b.getAttribute('aria-label') === currentItem.fr) b.classList.add('correct');
             });
-            setTimeout(newRound, 2200);
+            setTimeout(newRound, 2400);
           }
         }
 
@@ -591,27 +400,26 @@
       });
     }
 
-    /* ---- Bouton 🔊 Écouter (appel direct depuis geste) ---- */
+    /* ---- Bouton 🔊 Écouter ---- */
     function handleSpeak(e) {
+      /* speak EN PREMIER */
+      if (currentItem) speak(currentItem.en);
       e.preventDefault();
       if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-      if (currentItem) speak(currentItem.en);
     }
     speakBtn.addEventListener('click',      handleSpeak, { passive: false });
     speakBtn.addEventListener('touchstart', handleSpeak, { passive: false });
 
-    /* ============================================================
-       OVERLAY DE DÉMARRAGE
-       ============================================================
-       Le bouton "Jouer !" est le PREMIER geste — il déverrouille
-       AudioContext et SpeechSynthesis sur iOS/Android.
-       ============================================================ */
+    /* ---- Overlay de démarrage ---- */
     function handleUnlock(e) {
+      /* speak EN PREMIER — c'est le premier geste, iOS l'autorise ici */
+      speak('Hello !');
       e.preventDefault();
-      unlockAudio();                          // ← dans le geste direct
-      unlockOverlay.classList.add('hidden');  // masque l'overlay
+      unlockAudio();
+      unlockOverlay.classList.add('hidden');
       buildThemeSelector();
       newRound();
+      speechInfoEl.textContent = '🔊 Appuie sur le bouton pour entendre le mot !';
     }
     btnUnlock.addEventListener('click',      handleUnlock, { passive: false });
     btnUnlock.addEventListener('touchstart', handleUnlock, { passive: false });
