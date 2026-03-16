@@ -167,6 +167,24 @@
     const goodEl     = document.getElementById('good');
     const badEl      = document.getElementById('bad');
 
+    /* ============================================================
+       AUDIO — sons de bonne/mauvaise réponse (iOS/Android safe)
+       ============================================================ */
+    let audioCtx = null;
+    function unlockAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      try { const b=audioCtx.createBuffer(1,1,22050),s=audioCtx.createBufferSource(); s.buffer=b; s.connect(audioCtx.destination); s.start(0); } catch(e) {}
+    }
+    function playCorrect() {
+      if (!audioCtx) return;
+      [523,784].forEach((f,i)=>{ const t=audioCtx.currentTime+i*0.15,o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.type='sine'; o.frequency.value=f; g.gain.setValueAtTime(0.25,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.22); o.start(t); o.stop(t+0.24); });
+    }
+    function playWrong() {
+      if (!audioCtx) return;
+      const t=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.type='sawtooth'; o.frequency.value=200; g.gain.setValueAtTime(0.2,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.35); o.start(t); o.stop(t+0.37);
+    }
+
     /* --- Mélange un tableau (Fisher-Yates) --- */
     function shuffle(arr) {
       const a = [...arr];
@@ -210,8 +228,10 @@
           // Désactive tous les boutons
           gridEl.querySelectorAll('.color-btn').forEach(b => b.disabled = true);
 
+          unlockAudio();
           if (i === targetIndex) {
             // Bonne réponse
+            playCorrect();
             goodCount++;
             goodEl.textContent = goodCount;
             feedbackEl.textContent = '🌟 Bravo ! C\'est bien le ' + target.name + ' !';
@@ -220,6 +240,7 @@
             setTimeout(newRound, 1400);
           } else {
             // Mauvaise réponse — montre la bonne couleur
+            playWrong();
             badCount++;
             badEl.textContent = badCount;
             feedbackEl.textContent = '❌ Non ! Le ' + target.name + ' c\'est ici 👇';

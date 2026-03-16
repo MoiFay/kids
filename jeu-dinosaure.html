@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>🦕 Dino !</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      background: linear-gradient(180deg, #87CEEB 0%, #B0E0FF 60%, #E8F5E9 100%);
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ---- Zone de jeu canvas ---- */
+    #game-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 12px 16px;
+    }
+
+    #game-canvas {
+      border-radius: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+      background: transparent;
+      touch-action: none;   /* empêche le scroll au tap */
+      cursor: pointer;
+      display: block;
+      max-width: 100%;
+    }
+
+    /* ---- Infos score ---- */
+    #hud {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 600px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.25rem;
+      padding: 4px 4px 8px;
+      color: #2C3E50;
+    }
+    #hud .pill {
+      background: white;
+      border-radius: 50px;
+      padding: 4px 16px;
+      box-shadow: 0 3px 8px rgba(0,0,0,.12);
+    }
+
+    /* ---- Écran de démarrage / game over (overlay sur le canvas) ---- */
+    #overlay-msg {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      pointer-events: none; /* les clics passent au canvas */
+    }
+
+    /* conteneur relatif pour superposer l'overlay */
+    #canvas-container {
+      position: relative;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    #overlay-msg {
+      inset: 0;
+    }
+
+    #overlay-box {
+      background: rgba(255,255,255,.92);
+      border-radius: 24px;
+      padding: 22px 30px;
+      text-align: center;
+      box-shadow: 0 8px 24px rgba(0,0,0,.2);
+    }
+    #overlay-box .ov-emoji { font-size: 3.2rem; display: block; }
+    #overlay-box h2 {
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.8rem;
+      color: #333;
+      margin: 4px 0 2px;
+    }
+    #overlay-box p {
+      font-family: 'Nunito', sans-serif;
+      color: #777;
+      font-size: 1rem;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="nav-bar">
+    <a href="index.html" class="btn-home" aria-label="Retour au menu">🏠</a>
+    <span class="nav-title">🦕 Dino !</span>
+  </nav>
+
+  <!-- HUD score -->
+  <div id="game-wrap">
+    <div id="hud">
+      <div class="pill">⭐ Score : <span id="score-display">0</span></div>
+      <div class="pill">🏆 Record : <span id="record-display">0</span></div>
+    </div>
+
+    <!-- Canvas + overlay superposé -->
+    <div id="canvas-container">
+      <canvas id="game-canvas"></canvas>
+
+      <div id="overlay-msg">
+        <div id="overlay-box">
+          <span class="ov-emoji" id="ov-emoji">🦕</span>
+          <h2 id="ov-title">Dino saute !</h2>
+          <p  id="ov-sub">Appuie pour commencer</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ============================================================
+       JEU DU DINOSAURE
+       ============================================================
+       - Dino au sol, obstacles qui arrivent de droite
+       - Tap / clic / espace = saut
+       - Double-saut autorisé (une seule fois en l'air)
+       - Vitesse augmente progressivement
+       - Score sauvegardé en localStorage
+       - Entièrement dessiné sur canvas avec emojis
+       ============================================================ */
+
+    const canvas  = document.getElementById('game-canvas');
+    const ctx     = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score-display');
+    const recEl   = document.getElementById('record-display');
+    const ovMsg   = document.getElementById('overlay-msg');
+    const ovBox   = document.getElementById('overlay-box');
+    const ovEmoji = document.getElementById('ov-emoji');
+    const ovTitle = document.getElementById('ov-title');
+    const ovSub   = document.getElementById('ov-sub');
+
+    /* ---- Dimensions (responsive) ---- */
+    const BASE_W = 600;
+    const BASE_H = 200;
+    let scale    = 1;
+
+    function resizeCanvas() {
+      const maxW  = Math.min(window.innerWidth - 24, 600);
+      scale       = maxW / BASE_W;
+      canvas.width  = maxW;
+      canvas.height = BASE_H * scale;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', () => { resizeCanvas(); });
+
+    /* Convertit une coordonnée logique en pixel canvas */
+    const S = v => v * scale;
+
+    /* ---- Constantes physiques ---- */
+    const GROUND_Y   = BASE_H - 30;  // Y du sol (logique)
+    const DINO_W     = 50;
+    const DINO_H     = 54;
+    const GRAVITY    = 0.7;
+    const JUMP_FORCE = -14;
+
+    /* ---- État du jeu ---- */
+    let state        = 'idle';   // 'idle' | 'running' | 'dead'
+    let score        = 0;
+    let record       = parseInt(localStorage.getItem('dino-record') || '0');
+    let frameCount   = 0;
+    let gameSpeed    = 2.5;      // vitesse initiale douce pour les enfants
+    let animFrame    = null;
+
+    /* ---- Dino ---- */
+    const dino = {
+      x: 70, y: GROUND_Y - DINO_H,
+      vy: 0,
+      jumps: 0,          // 0=au sol, 1=premier saut, 2=double saut
+      frame: 0,          // pour l'animation des pattes
+    };
+
+    /* ---- Obstacles ---- */
+    let obstacles = [];
+
+    /* ---- Nuages décoratifs ---- */
+    let clouds = [
+      { x: 100, y: 20, speed: 0.4, size: 1   },
+      { x: 300, y: 35, speed: 0.3, size: 0.7 },
+      { x: 500, y: 15, speed: 0.5, size: 0.9 },
+    ];
+
+    /* ---- Sol avec motif ---- */
+    let groundOffset = 0;
+
+    /* ---- Emojis utilisés ---- */
+    const DINO_EMOJIS   = ['🦕', '🦖'];
+    const CACTUS_EMOJIS = ['🌵', '🌴', '🪨', '🌳'];
+    const BIRD_EMOJI    = '🦅';
+    let   dinoEmoji     = '🦕';
+
+    /* ============================================================
+       UTILITAIRES
+       ============================================================ */
+    function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+
+    function drawEmoji(emoji, x, y, size) {
+      ctx.font = `${S(size)}px serif`;
+      ctx.textAlign    = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(emoji, S(x), S(y));
+    }
+
+    /* Dessine le dino retourné horizontalement (il regarde à droite) */
+    function drawDino(emoji, x, y, size) {
+      ctx.save();
+      /* On translate au centre du dino puis on inverse l'axe X */
+      ctx.translate(S(x + size / 2), 0);
+      ctx.scale(-1, 1);
+      ctx.font = `${S(size)}px serif`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(emoji, 0, S(y));
+      ctx.restore();
+    }
+
+    /* ============================================================
+       SAUT
+       ============================================================ */
+    /* ============================================================
+       SONS (AudioContext)
+       ============================================================ */
+    let audioCtx = null;
+
+    /* Crée ET déverrouille l'AudioContext depuis un geste direct.
+       Appelé au début de jump() pour garantir que le contexte est
+       actif dès le premier tap, même sur iOS. */
+    function unlockAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      /* iOS : buffer silencieux pour débloquer le contexte */
+      try {
+        const buf = audioCtx.createBuffer(1, 1, 22050);
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        src.start(0);
+      } catch(e) {}
+    }
+
+    function getCtx() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+
+    function jump() {
+      /* Déverrouille l'audio à chaque tap — iOS exige un geste
+         direct pour résumer l'AudioContext */
+      unlockAudio();
+
+      if (state === 'idle' || state === 'dead') {
+        startGame();
+        return;
+      }
+      if (dino.jumps < 2) {
+        dino.vy     = JUMP_FORCE;
+        dino.jumps++;
+        playJumpSound();
+      }
+    }
+
+    function playJumpSound() {
+      try {
+        const ac   = getCtx();
+        const osc  = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.connect(gain); gain.connect(ac.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, ac.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(600, ac.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.18, ac.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.15);
+        osc.start(ac.currentTime); osc.stop(ac.currentTime + 0.16);
+      } catch(e) {}
+    }
+
+    function playDeadSound() {
+      try {
+        const ac    = getCtx();
+        const notes = [400, 300, 200];
+        notes.forEach((f, i) => {
+          const t    = ac.currentTime + i * 0.12;
+          const osc  = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.connect(gain); gain.connect(ac.destination);
+          osc.type = 'sawtooth'; osc.frequency.value = f;
+          gain.gain.setValueAtTime(0.2, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+          osc.start(t); osc.stop(t + 0.12);
+        });
+      } catch(e) {}
+    }
+
+    function playScoreSound() {
+      try {
+        const ac   = getCtx();
+        const osc  = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.connect(gain); gain.connect(ac.destination);
+        osc.type = 'sine'; osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.15, ac.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.08);
+        osc.start(ac.currentTime); osc.stop(ac.currentTime + 0.1);
+      } catch(e) {}
+    }
+
+    /* ============================================================
+       SPAWN OBSTACLES
+       ============================================================ */
+    function spawnObstacle() {
+      // Parfois un oiseau (en hauteur), sinon un cactus/rocher au sol
+      const isBird  = score > 10 && Math.random() < 0.25;
+      const emoji   = isBird
+        ? BIRD_EMOJI
+        : CACTUS_EMOJIS[randInt(0, CACTUS_EMOJIS.length - 1)];
+      const size    = isBird ? 36 : randInt(34, 52);
+      const yPos    = isBird
+        ? GROUND_Y - DINO_H - randInt(10, 40)   // en l'air
+        : GROUND_Y - size;                        // au sol
+      const w       = size;
+      const gap     = randInt(280, 480);          // distance avant le prochain
+
+      obstacles.push({ x: BASE_W + 40, y: yPos, w, h: size, emoji, size, gap });
+    }
+
+    /* ============================================================
+       COLLISION (boîte réduite pour plus de tolérance)
+       ============================================================ */
+    function checkCollision(obs) {
+      const margin = 10; // pixels de marge (logique)
+      const dx = dino.x + margin;
+      const dw = DINO_W - margin * 2;
+      const dy = dino.y + margin;
+      const dh = DINO_H - margin * 2;
+
+      return (
+        dx < obs.x + obs.w - margin &&
+        dx + dw > obs.x + margin    &&
+        dy < obs.y + obs.h - margin &&
+        dy + dh > obs.y + margin
+      );
+    }
+
+    /* ============================================================
+       DÉMARRAGE / RESET
+       ============================================================ */
+    function startGame() {
+      state      = 'running';
+      score      = 0;
+      frameCount = 0;
+      gameSpeed  = 2.5;
+      obstacles  = [];
+      dino.y     = GROUND_Y - DINO_H;
+      dino.vy    = 0;
+      dino.jumps = 0;
+      dinoEmoji  = DINO_EMOJIS[randInt(0, 1)];
+      ovMsg.style.display = 'none';
+      scoreEl.textContent = '0';
+      recEl.textContent   = record;
+      if (animFrame) cancelAnimationFrame(animFrame);
+      gameLoop();
+    }
+
+    function gameOver() {
+      state = 'dead';
+      playDeadSound();
+      if (score > record) {
+        record = score;
+        localStorage.setItem('dino-record', record);
+        recEl.textContent = record;
+      }
+      ovEmoji.textContent = '😵';
+      ovTitle.textContent = 'Aïe ! Score : ' + score;
+      ovSub.textContent   = score > 5
+        ? 'Bien joué ! Appuie pour rejouer 🔄'
+        : 'Appuie pour réessayer ! 💪';
+      ovMsg.style.display = 'flex';
+    }
+
+    /* ============================================================
+       BOUCLE PRINCIPALE
+       ============================================================ */
+    function gameLoop() {
+      if (state !== 'running') return;
+      animFrame = requestAnimationFrame(gameLoop);
+
+      frameCount++;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      /* --- Ciel dégradé --- */
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      skyGrad.addColorStop(0,   '#87CEEB');
+      skyGrad.addColorStop(0.7, '#C9E8FF');
+      skyGrad.addColorStop(1,   '#E8F5E9');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      /* --- Nuages --- */
+      clouds.forEach(c => {
+        c.x -= c.speed * scale;
+        if (c.x < -80) c.x = BASE_W + 40;
+        drawEmoji('☁️', c.x, c.y, 32 * c.size);
+      });
+
+      /* --- Sol --- */
+      groundOffset = (groundOffset + gameSpeed * scale) % (30 * scale);
+      ctx.fillStyle = '#8BC34A';
+      ctx.fillRect(0, S(GROUND_Y + 2), canvas.width, S(28));
+      ctx.fillStyle = '#7CB342';
+      ctx.fillRect(0, S(GROUND_Y + 2), canvas.width, S(6));
+      /* Tirets du sol */
+      ctx.fillStyle = '#9CCC65';
+      for (let x = -groundOffset; x < canvas.width; x += S(30)) {
+        ctx.fillRect(x, S(GROUND_Y + 8), S(18), S(3));
+      }
+
+      /* --- Dino physique --- */
+      dino.vy += GRAVITY;
+      dino.y  += dino.vy;
+      if (dino.y >= GROUND_Y - DINO_H) {
+        dino.y     = GROUND_Y - DINO_H;
+        dino.vy    = 0;
+        dino.jumps = 0;
+      }
+
+      /* Animation pattes (oscille quand au sol) */
+      if (dino.jumps === 0) {
+        dino.frame = Math.floor(frameCount / 6) % 2;
+      }
+
+      /* Dessin du dino */
+      const dinoYdraw = dino.y - (dino.jumps === 0 ? dino.frame * 2 : 0);
+      drawDino(dinoEmoji, dino.x, dinoYdraw, DINO_H);
+
+      /* --- Obstacles --- */
+      // Spawn du premier obstacle et gestion du gap
+      if (obstacles.length === 0) {
+        spawnObstacle();
+      }
+      const last = obstacles[obstacles.length - 1];
+      if (last && BASE_W - last.x >= last.gap) {
+        spawnObstacle();
+      }
+
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const obs = obstacles[i];
+        obs.x -= gameSpeed;
+        drawEmoji(obs.emoji, obs.x, obs.y, obs.size);
+
+        /* Collision */
+        if (checkCollision(obs)) {
+          gameOver();
+          return;
+        }
+
+        /* Obstacle passé = +1 point */
+        if (!obs.passed && obs.x + obs.w < dino.x) {
+          obs.passed = true;
+          score++;
+          scoreEl.textContent = score;
+          if (score % 5 === 0) playScoreSound();
+          /* Accélère progressivement, max 14 */
+          if (gameSpeed < 8) gameSpeed += 0.12;
+        }
+
+        /* Nettoie les obstacles hors écran */
+        if (obs.x + obs.w < -60) obstacles.splice(i, 1);
+      }
+
+      /* --- Score dans le canvas (petit, coin droit) --- */
+      ctx.font         = `bold ${S(16)}px 'Fredoka One', cursive`;
+      ctx.fillStyle    = 'rgba(0,0,0,.25)';
+      ctx.textAlign    = 'right';
+      ctx.textBaseline = 'top';
+      ctx.fillText('⭐ ' + score, canvas.width - S(8), S(8));
+    }
+
+    /* ============================================================
+       RENDU DE L'ÉCRAN IDLE (avant démarrage)
+       ============================================================ */
+    function drawIdle() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      skyGrad.addColorStop(0,   '#87CEEB');
+      skyGrad.addColorStop(1,   '#E8F5E9');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#8BC34A';
+      ctx.fillRect(0, S(GROUND_Y + 2), canvas.width, S(28));
+      drawDino('🦕', dino.x, GROUND_Y - DINO_H, DINO_H);
+      drawEmoji('🌵', BASE_W * 0.65, GROUND_Y - 48, 48);
+    }
+    drawIdle();
+
+    /* Affiche l'overlay de départ */
+    recEl.textContent   = record;
+    ovMsg.style.display = 'flex';
+
+    /* ============================================================
+       CONTRÔLES
+       ============================================================ */
+
+    /* Tap / clic sur le canvas */
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      jump();
+    }, { passive: false });
+
+    canvas.addEventListener('click', e => {
+      e.preventDefault();
+      jump();
+    });
+
+    /* Touche espace / flèche haut pour desktop */
+    document.addEventListener('keydown', e => {
+      if (e.code === 'Space' || e.code === 'ArrowUp') {
+        e.preventDefault();
+        jump();
+      }
+    });
+
+    /* Clic sur l'overlay aussi */
+    ovMsg.addEventListener('click',      e => { e.stopPropagation(); jump(); });
+    ovMsg.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); jump(); }, { passive: false });
+  </script>
+</body>
+</html>

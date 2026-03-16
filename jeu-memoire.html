@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>🃏 Mémoire</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: linear-gradient(160deg, #E8EAF6, #FCE4EC); min-height: 100vh; }
+
+    /* ---- Sélecteur de difficulté ---- */
+    #difficulty-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 16px 40px;
+      gap: 14px;
+      min-height: calc(100vh - 70px);
+    }
+    #difficulty-screen h2 {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2rem;
+      color: #333;
+      text-align: center;
+    }
+    #difficulty-screen p {
+      color: #888;
+      font-size: 1rem;
+      text-align: center;
+      margin-top: -8px;
+    }
+    .diff-btn {
+      width: 280px;
+      padding: 18px 24px;
+      border: none;
+      border-radius: 22px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.4rem;
+      cursor: pointer;
+      box-shadow: 0 6px 0 rgba(0,0,0,.18);
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: transform .12s, box-shadow .12s;
+    }
+    .diff-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,.18); }
+    .diff-btn .diff-emoji { font-size: 2rem; }
+    .diff-btn .diff-info  { text-align: left; line-height: 1.2; }
+    .diff-btn .diff-sub   { font-family: 'Nunito', sans-serif; font-size: .85rem; opacity: .9; }
+    .diff-btn.easy   { background: linear-gradient(135deg, #66BB6A, #2E7D32); }
+    .diff-btn.medium { background: linear-gradient(135deg, #FFA726, #E65100); }
+    .diff-btn.hard   { background: linear-gradient(135deg, #EF5350, #B71C1C); }
+
+    /* ---- Écran de jeu ---- */
+    #game-screen { display: none; padding: 8px 12px 24px; }
+
+    /* ---- HUD ---- */
+    #hud {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      padding: 4px 0 10px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.2rem;
+      flex-wrap: wrap;
+    }
+    #hud .pill {
+      background: white;
+      border-radius: 50px;
+      padding: 4px 14px;
+      box-shadow: 0 3px 8px rgba(0,0,0,.1);
+      color: #444;
+    }
+
+    /* ---- Grille de cartes ---- */
+    #card-grid {
+      display: grid;
+      gap: 10px;
+      max-width: 520px;
+      margin: 0 auto;
+      /* Les colonnes sont définies dynamiquement en JS */
+    }
+
+    /* ---- Carte ---- */
+    .card {
+      aspect-ratio: 1;
+      position: relative;
+      cursor: pointer;
+      /* perspective pour l'effet 3D */
+      perspective: 600px;
+      border-radius: 16px;
+    }
+
+    .card-inner {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform .45s cubic-bezier(.4,0,.2,1);
+      border-radius: 16px;
+    }
+
+    /* Carte retournée */
+    .card.flipped .card-inner,
+    .card.matched .card-inner {
+      transform: rotateY(180deg);
+    }
+
+    .card-front, .card-back {
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    /* Dos de la carte */
+    .card-back {
+      background: linear-gradient(135deg, #5C6BC0, #3949AB);
+      box-shadow: 0 4px 0 rgba(0,0,0,.2);
+      font-size: 1.8rem;
+    }
+    .card-back::after {
+      content: '?';
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.8rem;
+      color: rgba(255,255,255,.5);
+    }
+
+    /* Face (emoji) */
+    .card-front {
+      background: white;
+      box-shadow: 0 4px 0 rgba(0,0,0,.15);
+      transform: rotateY(180deg);
+      font-size: 2.2rem; /* taille de base, ajustée en JS */
+    }
+
+    /* Carte trouvée = fond vert */
+    .card.matched .card-front {
+      background: linear-gradient(135deg, #C8E6C9, #A5D6A7);
+      box-shadow: 0 4px 0 rgba(76,175,80,.3);
+    }
+
+    /* Mauvaise paire — flash rouge */
+    @keyframes wrong-flash {
+      0%, 100% { filter: brightness(1);   }
+      40%       { filter: brightness(.55) sepia(1) saturate(3) hue-rotate(300deg); }
+    }
+    .card.wrong { animation: wrong-flash .5s ease; }
+
+    /* Animation bonne paire — rebond */
+    @keyframes match-bounce {
+      0%   { transform: rotateY(180deg) scale(1);    }
+      40%  { transform: rotateY(180deg) scale(1.15); }
+      100% { transform: rotateY(180deg) scale(1);    }
+    }
+    .card.matched .card-inner {
+      animation: match-bounce .4s ease .45s both;
+    }
+
+    /* ---- Overlay victoire ---- */
+    #win-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.5);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    #win-overlay.show { display: flex; animation: fadeIn .3s ease; }
+    #win-box {
+      background: white;
+      border-radius: 28px;
+      padding: 32px 36px;
+      text-align: center;
+      max-width: 340px;
+      width: 90%;
+      box-shadow: 0 16px 40px rgba(0,0,0,.3);
+    }
+    #win-box .big { font-size: 4rem; display: block; animation: star-pulse 1s infinite; }
+    #win-box h2   { font-family: 'Fredoka One', cursive; font-size: 2rem; color: #333; margin: 8px 0 4px; }
+    #win-box p    { color: #777; font-size: 1rem; margin-bottom: 20px; }
+    .win-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .win-btns a, .win-btns button {
+      background: var(--col-green);
+      color: white;
+      border: none;
+      border-radius: 50px;
+      padding: 12px 22px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.1rem;
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 4px 0 rgba(0,0,0,.15);
+    }
+    .win-btns a { background: var(--col-orange); }
+  </style>
+</head>
+<body>
+
+  <nav class="nav-bar">
+    <a href="index.html" class="btn-home" aria-label="Retour au menu">🏠</a>
+    <span class="nav-title">🃏 Mémoire !</span>
+  </nav>
+
+  <!-- ============================================================
+    ÉCRAN DE SÉLECTION DE DIFFICULTÉ
+    ============================================================ -->
+  <div id="difficulty-screen">
+    <span style="font-size:3.5rem; animation: bounce 1.5s infinite; display:block">🃏</span>
+    <h2>Jeu de Mémoire</h2>
+    <p>Retrouve toutes les paires !</p>
+
+    <button class="diff-btn easy" onclick="startGame(8, 4)">
+      <span class="diff-emoji">🐣</span>
+      <span class="diff-info">
+        Facile
+        <span class="diff-sub">8 cartes — 4 paires</span>
+      </span>
+    </button>
+
+    <button class="diff-btn medium" onclick="startGame(16, 4)">
+      <span class="diff-emoji">😊</span>
+      <span class="diff-info">
+        Moyen
+        <span class="diff-sub">16 cartes — 8 paires</span>
+      </span>
+    </button>
+
+    <button class="diff-btn hard" onclick="startGame(24, 6)">
+      <span class="diff-emoji">🔥</span>
+      <span class="diff-info">
+        Difficile
+        <span class="diff-sub">24 cartes — 12 paires</span>
+      </span>
+    </button>
+  </div>
+
+  <!-- ============================================================
+    ÉCRAN DE JEU
+    ============================================================ -->
+  <div id="game-screen">
+
+    <div id="hud">
+      <div class="pill">🔄 Essais : <span id="tries">0</span></div>
+      <div class="pill">✅ Paires : <span id="pairs">0</span> / <span id="total-pairs">0</span></div>
+      <div class="pill">⏱️ <span id="timer">0</span>s</div>
+    </div>
+
+    <div id="card-grid" role="list" aria-label="Grille de cartes mémoire"></div>
+  </div>
+
+  <!-- Overlay victoire -->
+  <div id="win-overlay">
+    <div id="win-box">
+      <span class="big">🏆</span>
+      <h2>Bravo !</h2>
+      <p id="win-msg"></p>
+      <div class="win-btns">
+        <button onclick="backToDifficulty()">🔄 Rejouer</button>
+        <a href="index.html">🏠 Accueil</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ============================================================
+       JEU DE MÉMOIRE
+       ============================================================
+       Principe :
+         - Les cartes sont retournées face cachée
+         - L'enfant clique sur 2 cartes
+         - Si les emojis correspondent → paire trouvée (elles restent visibles)
+         - Sinon elles se retournent après une courte pause
+         - Gagné quand toutes les paires sont trouvées
+       Niveaux :
+         - Facile  :  8 cartes (4 paires)  — grille 4×2
+         - Moyen   : 16 cartes (8 paires)  — grille 4×4
+         - Difficile: 24 cartes (12 paires) — grille 4×6
+       ============================================================ */
+
+    /* ---- Bibliothèque d'emojis (thèmes variés) ---- */
+    const EMOJI_POOL = [
+      '🐶','🐱','🐮','🐷','🐸','🦁','🐘','🦋',
+      '🍎','🍌','🍓','🍕','🍦','🎈','🌟','🎠',
+      '🚗','🚀','🌈','🌻','🎵','🏀','⚽','🦄',
+      '🐬','🦊','🦖','🐙','🍉','🍩','🎃','🌸',
+    ];
+
+    /* ---- État global ---- */
+    let cards        = [];        // tableau des données de cartes
+    let flipped      = [];        // indices des 2 cartes retournées
+    let matchedCount = 0;
+    let tries        = 0;
+    let totalPairs   = 0;
+    let timerSec     = 0;
+    let timerInterval= null;
+    let locked       = false;     // bloque les clics pendant la vérification
+
+    /* ---- Éléments DOM ---- */
+    const diffScreen  = document.getElementById('difficulty-screen');
+    const gameScreen  = document.getElementById('game-screen');
+    const gridEl      = document.getElementById('card-grid');
+    const triesEl     = document.getElementById('tries');
+    const pairsEl     = document.getElementById('pairs');
+    const totalPEl    = document.getElementById('total-pairs');
+    const timerEl     = document.getElementById('timer');
+    const winOverlay  = document.getElementById('win-overlay');
+    const winMsg      = document.getElementById('win-msg');
+
+    /* ---- Sons ---- */
+    let audioCtx = null;
+    function getAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+
+    function playMatch() {
+      try {
+        const ac = getAudio();
+        [523, 784].forEach((f, i) => {
+          const t = ac.currentTime + i * 0.15;
+          const o = ac.createOscillator(), g = ac.createGain();
+          o.connect(g); g.connect(ac.destination);
+          o.type = 'sine'; o.frequency.value = f;
+          g.gain.setValueAtTime(0.25, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+          o.start(t); o.stop(t + 0.27);
+        });
+      } catch(e) {}
+    }
+
+    function playWrong() {
+      try {
+        const ac = getAudio(), t = ac.currentTime;
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.connect(g); g.connect(ac.destination);
+        o.type = 'sine'; o.frequency.value = 220;
+        g.gain.setValueAtTime(0.2, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+        o.start(t); o.stop(t + 0.27);
+      } catch(e) {}
+    }
+
+    function playWin() {
+      try {
+        const ac = getAudio();
+        [523,659,784,1046,1318].forEach((f, i) => {
+          const t = ac.currentTime + i * 0.1;
+          const o = ac.createOscillator(), g = ac.createGain();
+          o.connect(g); g.connect(ac.destination);
+          o.type = 'sine'; o.frequency.value = f;
+          g.gain.setValueAtTime(0.22, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+          o.start(t); o.stop(t + 0.2);
+        });
+      } catch(e) {}
+    }
+
+    /* ---- Mélange Fisher-Yates ---- */
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    /* ============================================================
+       DÉMARRAGE D'UNE PARTIE
+       totalCards : nombre total de cartes (doit être pair)
+       cols       : nombre de colonnes de la grille
+       ============================================================ */
+    function startGame(totalCards, cols) {
+      /* Déverrouille AudioContext au clic du bouton de difficulté */
+      try { getAudio(); } catch(e) {}
+
+      /* Réinitialisation */
+      flipped      = [];
+      matchedCount = 0;
+      tries        = 0;
+      timerSec     = 0;
+      locked       = false;
+      totalPairs   = totalCards / 2;
+
+      triesEl.textContent  = '0';
+      pairsEl.textContent  = '0';
+      totalPEl.textContent = totalPairs;
+      timerEl.textContent  = '0';
+      winOverlay.classList.remove('show');
+
+      /* Timer */
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        timerSec++;
+        timerEl.textContent = timerSec;
+      }, 1000);
+
+      /* Sélectionne les emojis nécessaires et crée les paires */
+      const emojis   = shuffle(EMOJI_POOL).slice(0, totalPairs);
+      const pairs    = shuffle([...emojis, ...emojis]); // chaque emoji en double
+      cards          = pairs.map((emoji, i) => ({ id: i, emoji, matched: false }));
+
+      /* Grille CSS responsive */
+      gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+      /* Taille d'emoji selon la grille */
+      const emojiSize = totalCards <= 8 ? '2.6rem' : totalCards <= 16 ? '2rem' : '1.5rem';
+
+      /* Construit les cartes DOM */
+      gridEl.innerHTML = '';
+      cards.forEach((card, idx) => {
+        const el = document.createElement('div');
+        el.className  = 'card';
+        el.setAttribute('role', 'button');
+        el.setAttribute('aria-label', 'Carte cachée');
+        el.dataset.idx = idx;
+        el.innerHTML = `
+          <div class="card-inner">
+            <div class="card-back"></div>
+            <div class="card-front" style="font-size:${emojiSize}">${card.emoji}</div>
+          </div>`;
+
+        function handleFlip(e) {
+          e.preventDefault();
+          flipCard(idx, el);
+        }
+        el.addEventListener('click',      handleFlip);
+        el.addEventListener('touchstart', handleFlip, { passive: false });
+        gridEl.appendChild(el);
+      });
+
+      /* Affiche l'écran de jeu */
+      diffScreen.style.display = 'none';
+      gameScreen.style.display = 'block';
+    }
+
+    /* ============================================================
+       LOGIQUE DE RETOURNEMENT
+       ============================================================ */
+    function flipCard(idx, el) {
+      const card = cards[idx];
+
+      /* Ignore si : verrou actif, déjà retournée, déjà trouvée */
+      if (locked)           return;
+      if (card.matched)     return;
+      if (flipped.includes(idx)) return;
+      if (flipped.length === 2)  return;
+
+      /* Retourne la carte */
+      el.classList.add('flipped');
+      el.setAttribute('aria-label', card.emoji);
+      flipped.push(idx);
+
+      if (flipped.length === 2) {
+        locked = true;
+        tries++;
+        triesEl.textContent = tries;
+        checkPair();
+      }
+    }
+
+    function checkPair() {
+      const [i1, i2] = flipped;
+      const c1 = cards[i1], c2 = cards[i2];
+      const els = gridEl.querySelectorAll('.card');
+
+      if (c1.emoji === c2.emoji) {
+        /* ✅ Paire trouvée */
+        c1.matched = c2.matched = true;
+        matchedCount++;
+        pairsEl.textContent = matchedCount;
+        els[i1].classList.add('matched');
+        els[i2].classList.add('matched');
+        els[i1].setAttribute('aria-label', c1.emoji + ' trouvé');
+        els[i2].setAttribute('aria-label', c2.emoji + ' trouvé');
+        playMatch();
+        flipped = [];
+        locked  = false;
+
+        /* Victoire ? */
+        if (matchedCount === totalPairs) {
+          setTimeout(victory, 500);
+        }
+      } else {
+        /* ❌ Mauvaise paire — flash rouge puis retournement */
+        els[i1].classList.add('wrong');
+        els[i2].classList.add('wrong');
+        playWrong();
+        setTimeout(() => {
+          els[i1].classList.remove('flipped', 'wrong');
+          els[i2].classList.remove('flipped', 'wrong');
+          els[i1].setAttribute('aria-label', 'Carte cachée');
+          els[i2].setAttribute('aria-label', 'Carte cachée');
+          flipped = [];
+          locked  = false;
+        }, 900);
+      }
+    }
+
+    /* ============================================================
+       VICTOIRE
+       ============================================================ */
+    function victory() {
+      clearInterval(timerInterval);
+      playWin();
+
+      /* Message selon les performances */
+      let msg = '';
+      const ratio = tries / totalPairs; // proche de 1 = excellent
+      if (ratio <= 1.3)      msg = '🌟 Incroyable ! Tu as une mémoire de génie !';
+      else if (ratio <= 2)   msg = '🎉 Très bien joué ! Tu es fort !';
+      else if (ratio <= 3)   msg = '😊 Bravo ! Continue comme ça !';
+      else                   msg = '👏 Bien joué ! Tu peux encore t\'améliorer !';
+
+      winMsg.textContent = msg + ` (${tries} essais en ${timerSec}s)`;
+      winOverlay.classList.add('show');
+    }
+
+    /* ============================================================
+       RETOUR À L'ÉCRAN DE DIFFICULTÉ
+       ============================================================ */
+    function backToDifficulty() {
+      clearInterval(timerInterval);
+      winOverlay.classList.remove('show');
+      gameScreen.style.display  = 'none';
+      diffScreen.style.display  = 'flex';
+    }
+  </script>
+</body>
+</html>

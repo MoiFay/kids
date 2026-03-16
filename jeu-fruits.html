@@ -184,6 +184,24 @@
     const endOverlay= document.getElementById('end-overlay');
     const endScoreEl= document.getElementById('end-score');
 
+    /* ============================================================
+       AUDIO — sons de capture et d'erreur (iOS/Android safe)
+       ============================================================ */
+    let audioCtx = null;
+    function unlockAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      try { const b=audioCtx.createBuffer(1,1,22050),s=audioCtx.createBufferSource(); s.buffer=b; s.connect(audioCtx.destination); s.start(0); } catch(e) {}
+    }
+    function playCatch() {
+      if (!audioCtx) return;
+      const t=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.type='sine'; o.frequency.setValueAtTime(400,t); o.frequency.exponentialRampToValueAtTime(800,t+0.1); g.gain.setValueAtTime(0.25,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.15); o.start(t); o.stop(t+0.17);
+    }
+    function playBadFruit() {
+      if (!audioCtx) return;
+      const t=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.type='sawtooth'; o.frequency.value=180; g.gain.setValueAtTime(0.18,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3); o.start(t); o.stop(t+0.32);
+    }
+
     /* --- Choisit un nouveau fruit cible --- */
     function pickTarget() {
       const idx = Math.floor(Math.random() * ALL_FRUITS.length);
@@ -215,8 +233,10 @@
         e.preventDefault();
         if (!running) return;
 
+        unlockAudio();
         if (chosen.name === target.name) {
           // Bon fruit !
+          playCatch();
           score++;
           scoreEl.textContent = score;
           fruit.classList.add('caught');
@@ -226,6 +246,7 @@
           setTimeout(() => fruit.remove(), 350);
         } else {
           // Mauvais fruit
+          playBadFruit();
           miss++;
           missEl.textContent = miss;
           fruit.classList.add('wrong-shake');

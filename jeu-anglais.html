@@ -8,6 +8,54 @@
   <style>
     body { background: linear-gradient(160deg, #FFF8E1, #E8EAF6); min-height: 100vh; }
 
+    /* ---- Overlay "Appuie pour commencer" (déverrouillag audio mobile) ---- */
+    #unlock-overlay {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(160deg, #3F51B5, #1A237E);
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      cursor: pointer;
+    }
+    #unlock-overlay.hidden { display: none; }
+
+    #unlock-overlay .ul-emoji {
+      font-size: 5rem;
+      animation: bounce 1.5s infinite;
+    }
+    #unlock-overlay h2 {
+      font-family: 'Fredoka One', cursive;
+      color: white;
+      font-size: 2.2rem;
+      text-align: center;
+      padding: 0 24px;
+    }
+    #unlock-overlay p {
+      color: rgba(255,255,255,.75);
+      font-family: 'Nunito', sans-serif;
+      font-size: 1.1rem;
+      text-align: center;
+      padding: 0 24px;
+    }
+    #unlock-overlay .ul-btn {
+      background: #FFD700;
+      color: #1A237E;
+      border: none;
+      border-radius: 50px;
+      padding: 18px 44px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.6rem;
+      cursor: pointer;
+      box-shadow: 0 6px 0 rgba(0,0,0,.25);
+      animation: star-pulse 1.2s infinite;
+      min-width: 200px;
+      min-height: 70px;
+    }
+
     /* ---- Sélecteur de thème ---- */
     #theme-selector {
       display: flex;
@@ -82,6 +130,13 @@
     }
     #btn-speak.speaking { background: #FF8C00; }
 
+    /* Pulse pour inviter à taper le bouton écouter */
+    @keyframes speak-pulse {
+      0%, 100% { box-shadow: 0 5px 0 rgba(0,0,0,.2), 0 0 0 0 rgba(63,81,181,.4); }
+      50%       { box-shadow: 0 5px 0 rgba(0,0,0,.2), 0 0 0 12px rgba(63,81,181,0); }
+    }
+    #btn-speak:not(.speaking) { animation: speak-pulse 2s infinite; }
+
     /* ---- Grille de réponses ---- */
     #answers {
       display: grid;
@@ -152,6 +207,20 @@
   </style>
 </head>
 <body>
+
+  <!--
+    ============================================================
+    OVERLAY "Appuie pour commencer"
+    Obligatoire sur iOS/Android pour débloquer AudioContext
+    et SpeechSynthesis (politique autoplay des navigateurs).
+    ============================================================
+  -->
+  <div id="unlock-overlay" role="dialog" aria-modal="true" aria-label="Démarrer le jeu">
+    <span class="ul-emoji" aria-hidden="true">🇬🇧</span>
+    <h2>English Time !</h2>
+    <p>Appuie pour activer la voix et les sons 🔊</p>
+    <button class="ul-btn" id="btn-unlock">▶ Jouer !</button>
+  </div>
 
   <nav class="nav-bar">
     <a href="index.html" class="btn-home" aria-label="Retour au menu">🏠</a>
@@ -271,103 +340,152 @@
       }
     };
 
-    /* ---- Paramètres globaux ---- */
-    let currentTheme  = 'numbers';
-    let currentItem   = null;
-    let goodCount     = 0, badCount = 0;
-    let locked        = false;
-    let speechEnabled = false;
-    let engVoice      = null;
+    /* ============================================================
+       PARAMÈTRES GLOBAUX
+       ============================================================ */
+    let currentTheme = 'numbers';
+    let currentItem  = null;
+    let goodCount    = 0, badCount = 0;
+    let locked       = false;
+    let audioUnlocked = false;   // true après le premier geste utilisateur
+
+    /* --- AudioContext PARTAGÉ (une seule instance = obligatoire sur mobile) --- */
+    let audioCtx = null;
+
+    /* --- Voix anglaise pour SpeechSynthesis --- */
+    let engVoice = null;
 
     /* ---- Éléments DOM ---- */
-    const themeSelEl   = document.getElementById('theme-selector');
-    const emojiEl      = document.getElementById('word-emoji');
-    const englishEl    = document.getElementById('word-english');
-    const frenchEl     = document.getElementById('word-french');
-    const speakBtn     = document.getElementById('btn-speak');
-    const answersEl    = document.getElementById('answers');
-    const feedbackEl   = document.getElementById('feedback');
-    const goodEl       = document.getElementById('good');
-    const badEl        = document.getElementById('bad');
-    const speechInfoEl = document.getElementById('speech-info');
+    const unlockOverlay = document.getElementById('unlock-overlay');
+    const btnUnlock     = document.getElementById('btn-unlock');
+    const themeSelEl    = document.getElementById('theme-selector');
+    const emojiEl       = document.getElementById('word-emoji');
+    const englishEl     = document.getElementById('word-english');
+    const frenchEl      = document.getElementById('word-french');
+    const speakBtn      = document.getElementById('btn-speak');
+    const answersEl     = document.getElementById('answers');
+    const feedbackEl    = document.getElementById('feedback');
+    const goodEl        = document.getElementById('good');
+    const badEl         = document.getElementById('bad');
+    const speechInfoEl  = document.getElementById('speech-info');
 
     /* ============================================================
-       SpeechSynthesis
+       DÉVERROUILLAGE AUDIO — doit être appelé depuis un tap direct
+       ============================================================
+       iOS et Android refusent AudioContext et SpeechSynthesis
+       si aucun geste utilisateur n'a eu lieu au préalable.
+       L'overlay force ce premier geste.
        ============================================================ */
-    function initSpeech() {
-      if (!window.speechSynthesis) {
-        speechInfoEl.textContent = '(Synthèse vocale non disponible sur cet appareil)';
-        return;
+    function unlockAudio() {
+      /* 1. Crée (ou reprend) l'AudioContext depuis le geste */
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       }
-      function loadVoices() {
-        const voices = window.speechSynthesis.getVoices();
-        // Cherche une voix anglaise (en-GB en priorité, sinon en-US)
-        engVoice = voices.find(v => v.lang === 'en-GB')
-                || voices.find(v => v.lang.startsWith('en-'))
-                || null;
-        speechEnabled = true;
-        speechInfoEl.textContent = engVoice
-          ? '🔊 Appuie sur le bouton pour entendre le mot en anglais !'
-          : '🔊 Prononciation activée';
+      /* iOS met l'AudioContext en "suspended" au démarrage :
+         il faut le reprendre DANS le handler du geste. */
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
       }
-      if (window.speechSynthesis.getVoices().length > 0) {
-        loadVoices();
-      } else {
-        window.speechSynthesis.onvoiceschanged = loadVoices;
+
+      /* 2. Déverrouille SpeechSynthesis sur iOS avec une utterance silencieuse.
+         iOS requiert un premier speak() synchrone dans un event handler. */
+      if (window.speechSynthesis) {
+        const silent = new SpeechSynthesisUtterance(' ');
+        silent.volume = 0;       // silencieuse
+        silent.lang   = 'en-GB';
+        window.speechSynthesis.speak(silent);
       }
+
+      audioUnlocked = true;
     }
 
-    /* Prononce un texte en anglais */
+    /* ============================================================
+       SPEECHSYNTHESIS — chargement des voix
+       ============================================================ */
+    function loadVoices() {
+      if (!window.speechSynthesis) return;
+      const voices = window.speechSynthesis.getVoices();
+      /* Priorité : en-GB > en-US > n'importe quelle voix anglaise */
+      engVoice = voices.find(v => v.lang === 'en-GB')
+              || voices.find(v => v.lang === 'en-US')
+              || voices.find(v => v.lang.startsWith('en'))
+              || null;
+      speechInfoEl.textContent = engVoice
+        ? '🔊 Appuie sur le bouton pour entendre le mot en anglais !'
+        : (voices.length > 0 ? '🔊 Prononciation activée' : '');
+    }
+
+    /* Les navigateurs mobiles chargent les voix de façon asynchrone */
+    if (window.speechSynthesis) {
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+
+    /* Prononce un texte en anglais.
+       ⚠️  NE PAS appeler depuis setTimeout sur mobile — toujours
+           depuis un event handler direct (click / touchstart). */
     function speak(text) {
-      if (!speechEnabled || !window.speechSynthesis) return;
+      if (!audioUnlocked || !window.speechSynthesis) return;
+
+      /* Workaround iOS : annuler avant de relancer évite le gel */
       window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = 'en-GB';
-      utter.rate = 0.85;   // légèrement plus lent pour les enfants
-      utter.pitch = 1.1;   // voix légèrement aiguë, enfantine
+
+      const utter    = new SpeechSynthesisUtterance(text);
+      utter.lang     = 'en-GB';
+      utter.rate     = 0.85;
+      utter.pitch    = 1.1;
       if (engVoice) utter.voice = engVoice;
+
       speakBtn.classList.add('speaking');
       utter.onend = () => speakBtn.classList.remove('speaking');
+
+      /* Workaround iOS : speechSynthesis se "gèle" parfois après
+         quelques minutes sans parole. Ce ping régulier l'évite. */
       window.speechSynthesis.speak(utter);
     }
 
-    /* Son de succès (bip aigü) via AudioContext */
+    /* ============================================================
+       SONS AudioContext — succès et erreur
+       ============================================================
+       On réutilise le même audioCtx pour éviter le blocage mobile.
+       ============================================================ */
     function playSuccess() {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const notes = [523, 659, 784, 1046]; // Do Mi Sol Do (octave +)
-        notes.forEach((freq, i) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain); gain.connect(ctx.destination);
-          osc.type = 'sine';
-          osc.frequency.value = freq;
-          gain.gain.setValueAtTime(0.3, ctx.currentTime + i * 0.12);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.2);
-          osc.start(ctx.currentTime + i * 0.12);
-          osc.stop (ctx.currentTime + i * 0.12 + 0.2);
-        });
-      } catch(e) { /* Son non disponible — silencieux */ }
+      if (!audioCtx) return;
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const notes = [523, 659, 784, 1046];
+      notes.forEach((freq, i) => {
+        const t    = audioCtx.currentTime + i * 0.12;
+        const osc  = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type            = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.3, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        osc.start(t);
+        osc.stop (t + 0.22);
+      });
     }
 
-    /* Son d'erreur (bip grave) */
     function playError() {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc  = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.type = 'sawtooth';
-        osc.frequency.value = 180;
-        gain.gain.setValueAtTime(0.25, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-        osc.start(ctx.currentTime);
-        osc.stop (ctx.currentTime + 0.4);
-      } catch(e) {}
+      if (!audioCtx) return;
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const t    = audioCtx.currentTime;
+      const osc  = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type            = 'sawtooth';
+      osc.frequency.value = 180;
+      gain.gain.setValueAtTime(0.25, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      osc.start(t);
+      osc.stop (t + 0.42);
     }
 
     /* ============================================================
-       Interface thèmes
+       INTERFACE THÈMES
        ============================================================ */
     function buildThemeSelector() {
       themeSelEl.innerHTML = '';
@@ -390,49 +508,53 @@
     }
 
     /* ============================================================
-       Logique du jeu
+       LOGIQUE DU JEU
        ============================================================ */
     function shuffle(arr) {
-      const a = [...arr]; for (let i = a.length-1; i>0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a;
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
     }
 
     function newRound() {
       locked = false;
       feedbackEl.textContent = '';
-      answersEl.innerHTML = '';
+      answersEl.innerHTML    = '';
 
       const items = THEMES[currentTheme].items;
-
-      // Sélectionne l'item cible
       currentItem = items[Math.floor(Math.random() * items.length)];
 
-      // Affiche le mot anglais et son emoji
-      emojiEl.textContent    = currentItem.emoji;
-      englishEl.textContent  = currentItem.en;
-      frenchEl.textContent   = ''; // caché — c'est la réponse à trouver
+      emojiEl.textContent   = currentItem.emoji;
+      englishEl.textContent = currentItem.en;
+      frenchEl.textContent  = ''; // masqué — c'est la réponse
 
-      // Prononce automatiquement le mot
-      setTimeout(() => speak(currentItem.en), 400);
+      /* ⚠️  PAS de setTimeout(() => speak(...)) ici !
+         Sur iOS le speak() doit venir d'un geste direct.
+         L'enfant appuie sur 🔊 pour entendre le mot. */
 
-      // Construit les 4 réponses (traductions françaises)
-      const wrong = items.filter(i => i.fr !== currentItem.fr);
+      // Construit les 4 réponses
+      const wrong        = items.filter(i => i.fr !== currentItem.fr);
       const shuffledWrong = shuffle(wrong).slice(0, 3);
-      const choices = shuffle([currentItem, ...shuffledWrong]);
+      const choices       = shuffle([currentItem, ...shuffledWrong]);
 
       choices.forEach(item => {
         const btn = document.createElement('button');
         btn.className = 'ans-btn';
         btn.innerHTML = `<span class="ans-emoji">${item.emoji}</span><span>${item.fr}</span>`;
         btn.setAttribute('aria-label', item.fr);
-        btn.style.animationDelay = '0s';
 
         function pick(e) {
           e.preventDefault();
           if (locked) return;
           locked = true;
-          answersEl.querySelectorAll('.ans-btn').forEach(b => b.disabled = true);
 
-          // Révèle la traduction sous le mot anglais
+          /* Resume AudioContext si suspendu (peut arriver après inactivité) */
+          if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
+          answersEl.querySelectorAll('.ans-btn').forEach(b => b.disabled = true);
           frenchEl.textContent = '= ' + currentItem.fr;
 
           if (item.fr === currentItem.fr) {
@@ -440,7 +562,7 @@
             goodEl.textContent = goodCount;
             btn.classList.add('correct');
             playSuccess();
-            speak(currentItem.en); // répète le mot
+            speak(currentItem.en); // ✅ appelé directement depuis le tap
             const msgs = ['🌟 Bravo !', '✨ Super !', '🎉 Excellent !', '👏 Well done !'];
             feedbackEl.textContent = msgs[Math.floor(Math.random() * msgs.length)];
             feedbackEl.style.color = '#4CAF50';
@@ -452,10 +574,8 @@
             playError();
             feedbackEl.textContent = '❌ Non ! La bonne réponse est : ' + currentItem.fr;
             feedbackEl.style.color = '#FF4B4B';
-            // Surligne la bonne réponse
             answersEl.querySelectorAll('.ans-btn').forEach(b => {
-              const label = b.getAttribute('aria-label');
-              if (label === currentItem.fr) b.classList.add('correct');
+              if (b.getAttribute('aria-label') === currentItem.fr) b.classList.add('correct');
             });
             setTimeout(newRound, 2200);
           }
@@ -467,14 +587,30 @@
       });
     }
 
-    /* Bouton "Écouter" */
-    speakBtn.addEventListener('click', () => speak(currentItem ? currentItem.en : ''));
-    speakBtn.addEventListener('touchstart', e => { e.preventDefault(); speak(currentItem ? currentItem.en : ''); }, { passive: false });
+    /* ---- Bouton 🔊 Écouter (appel direct depuis geste) ---- */
+    function handleSpeak(e) {
+      e.preventDefault();
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      if (currentItem) speak(currentItem.en);
+    }
+    speakBtn.addEventListener('click',      handleSpeak, { passive: false });
+    speakBtn.addEventListener('touchstart', handleSpeak, { passive: false });
 
-    /* ---- Démarrage ---- */
-    initSpeech();
-    buildThemeSelector();
-    newRound();
+    /* ============================================================
+       OVERLAY DE DÉMARRAGE
+       ============================================================
+       Le bouton "Jouer !" est le PREMIER geste — il déverrouille
+       AudioContext et SpeechSynthesis sur iOS/Android.
+       ============================================================ */
+    function handleUnlock(e) {
+      e.preventDefault();
+      unlockAudio();                          // ← dans le geste direct
+      unlockOverlay.classList.add('hidden');  // masque l'overlay
+      buildThemeSelector();
+      newRound();
+    }
+    btnUnlock.addEventListener('click',      handleUnlock, { passive: false });
+    btnUnlock.addEventListener('touchstart', handleUnlock, { passive: false });
   </script>
 </body>
 </html>

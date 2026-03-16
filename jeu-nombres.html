@@ -199,6 +199,24 @@
     const badEl      = document.getElementById('bad');
     const liveEl     = document.getElementById('live-count');
 
+    /* ============================================================
+       AUDIO — sons correct/incorrect (iOS/Android safe)
+       ============================================================ */
+    let audioCtx = null;
+    function unlockAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      try { const b=audioCtx.createBuffer(1,1,22050),s=audioCtx.createBufferSource(); s.buffer=b; s.connect(audioCtx.destination); s.start(0); } catch(e) {}
+    }
+    function playCorrect() {
+      if (!audioCtx) return;
+      [523,659,784,1046].forEach((f,i)=>{ const t=audioCtx.currentTime+i*0.11,o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.type='sine'; o.frequency.value=f; g.gain.setValueAtTime(0.22,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.18); o.start(t); o.stop(t+0.2); });
+    }
+    function playWrong() {
+      if (!audioCtx) return;
+      const t=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.type='sawtooth'; o.frequency.value=200; g.gain.setValueAtTime(0.2,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.35); o.start(t); o.stop(t+0.37);
+    }
+
     /* --- Mélange tableau --- */
     function shuffle(arr) {
       const a = [...arr]; for (let i = a.length-1; i>0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a;
@@ -264,7 +282,9 @@
           locked = true;
           answersEl.querySelectorAll('.answer-btn').forEach(b => b.disabled = true);
 
+          unlockAudio();
           if (num === correctAnswer) {
+            playCorrect();
             goodCount++;
             goodEl.textContent = goodCount;
             btn.classList.add('correct');
@@ -273,6 +293,7 @@
             feedbackEl.style.color = '#4CAF50';
             setTimeout(newRound, 1600);
           } else {
+            playWrong();
             badCount++;
             badEl.textContent = badCount;
             btn.classList.add('wrong');

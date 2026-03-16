@@ -79,6 +79,59 @@
       padding: 4px;
     }
 
+    /* Vies (cœurs) */
+    #lives-display {
+      text-align: center;
+      font-size: 2rem;
+      letter-spacing: 6px;
+      min-height: 42px;
+      padding: 2px 0 4px;
+    }
+
+    /* Overlay game over */
+    #gameover-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+    }
+    #gameover-overlay.show { display: flex; animation: fadeIn .3s ease; }
+    #gameover-box {
+      background: white;
+      border-radius: 28px;
+      padding: 32px 36px;
+      text-align: center;
+      max-width: 320px;
+      width: 90%;
+      box-shadow: 0 16px 40px rgba(0,0,0,.3);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    #gameover-box #go-emoji { font-size: 4rem; animation: bounce 1s infinite; }
+    #gameover-box h2   { font-family: 'Fredoka One', cursive; font-size: 2rem; color: #333; margin: 0; }
+    #gameover-box p    { color: #777; font-size: 1rem; margin: 0 0 10px; }
+    #btn-restart {
+      background: var(--col-green);
+      color: white;
+      border: none;
+      border-radius: 50px;
+      padding: 14px 32px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.3rem;
+      cursor: pointer;
+      box-shadow: 0 5px 0 rgba(0,0,0,.2);
+    }
+    /* Cœur perdu : animation de chute */
+    @keyframes heart-lost {
+      0%   { transform: scale(1.4); filter: grayscale(0); }
+      100% { transform: scale(1);   filter: grayscale(1); opacity: .4; }
+    }
+
     /* Particules d'explosion */
     .particle {
       position: absolute;
@@ -103,9 +156,21 @@
     <span class="nav-title">🎈 Ballons à éclater !</span>
   </nav>
 
-  <!-- Score -->
+  <!-- Score + vies -->
   <div id="score-display">
     Score : <span id="score">0</span> &nbsp;| Record : <span id="record">0</span>
+  </div>
+  <div id="lives-display" aria-live="polite"></div>
+
+  <!-- Overlay game over -->
+  <div id="gameover-overlay">
+    <div id="gameover-box">
+      <span id="go-emoji">😢</span>
+      <h2 id="go-title">Perdu !</h2>
+      <p  id="go-score"></p>
+      <button id="btn-restart">🔄 Rejouer</button>
+      <a href="index.html" class="btn-home" style="margin-top:10px;display:inline-flex">🏠 Accueil</a>
+    </div>
   </div>
 
   <!-- Message -->
@@ -130,21 +195,143 @@
       '#2196F3','#9C27B0','#FF69B4','#00BCD4'
     ];
 
+    const MAX_LIVES = 3;           // nombre de cœurs au départ
     let score  = 0;
+    let lives  = MAX_LIVES;
+    let running = false;           // false = jeu arrêté
     let record = parseInt(localStorage.getItem('balloon-record') || '0');
     let spawnTimer = null;
-    let SPAWN_INTERVAL = 1200; // ms entre chaque ballon (diminue avec le score)
+    let SPAWN_INTERVAL = 1200;
 
-    const scoreEl  = document.getElementById('score');
-    const recordEl = document.getElementById('record');
-    const msgEl    = document.getElementById('message');
-    const area     = document.getElementById('balloon-area');
+    const scoreEl   = document.getElementById('score');
+    const recordEl  = document.getElementById('record');
+    const livesEl   = document.getElementById('lives-display');
+    const msgEl     = document.getElementById('message');
+    const area      = document.getElementById('balloon-area');
+    const goOverlay = document.getElementById('gameover-overlay');
+    const goScore   = document.getElementById('go-score');
+    const goEmoji   = document.getElementById('go-emoji');
+    const goTitle   = document.getElementById('go-title');
+    const btnRestart= document.getElementById('btn-restart');
 
-    // Affiche le record sauvegardé
     recordEl.textContent = record;
+
+    /* Affiche les cœurs en fonction des vies restantes */
+    function renderLives() {
+      livesEl.textContent = '❤️'.repeat(lives) + '🖤'.repeat(MAX_LIVES - lives);
+    }
+    renderLives();
+
+    /* Son de vie perdue */
+    function playLoseLive() {
+      if (!audioCtx) return;
+      const t = audioCtx.currentTime;
+      [300, 220].forEach((f, i) => {
+        const tt = t + i * 0.15;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sawtooth'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.2, tt);
+        g.gain.exponentialRampToValueAtTime(0.001, tt + 0.2);
+        o.start(tt); o.stop(tt + 0.22);
+      });
+    }
+
+    /* Game over */
+    function gameOver() {
+      running = false;
+      clearInterval(spawnTimer);
+      area.innerHTML = '';          // retire tous les ballons restants
+      msgEl.textContent = '';
+
+      if (score > record) {
+        record = score;
+        localStorage.setItem('balloon-record', record);
+        recordEl.textContent = record;
+        goEmoji.textContent = '🏆';
+        goTitle.textContent = 'Nouveau record !';
+      } else {
+        goEmoji.textContent = '😢';
+        goTitle.textContent = 'Perdu !';
+      }
+      goScore.textContent = 'Tu as éclaté ' + score + ' ballon' + (score > 1 ? 's' : '') + ' !';
+      goOverlay.classList.add('show');
+    }
+
+    /* Réinitialise et relance la partie */
+    function restartGame() {
+      score  = 0;
+      lives  = MAX_LIVES;
+      running = true;
+      SPAWN_INTERVAL = 1200;
+      scoreEl.textContent = '0';
+      msgEl.textContent   = '';
+      renderLives();
+      goOverlay.classList.remove('show');
+      area.innerHTML = '';
+      spawnBalloon();
+      restartSpawnTimer();
+    }
+
+    btnRestart.addEventListener('click',      restartGame);
+    btnRestart.addEventListener('touchstart', e => { e.preventDefault(); restartGame(); }, { passive: false });
+
+    /* ============================================================
+       AUDIO — pop de ballon et sons de félicitations
+       AudioContext unique déverrouillé au premier tap (iOS/Android)
+       ============================================================ */
+    let audioCtx = null;
+
+    function unlockAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      try {
+        const b = audioCtx.createBuffer(1,1,22050);
+        const s = audioCtx.createBufferSource();
+        s.buffer = b; s.connect(audioCtx.destination); s.start(0);
+      } catch(e) {}
+    }
+
+    /* Son POP (bruit d'éclatement) */
+    function playPop() {
+      if (!audioCtx) return;
+      const t    = audioCtx.currentTime;
+      const buf  = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.12, audioCtx.sampleRate);
+      const data = buf.getChannelData(0);
+      /* Bruit blanc décroissant = "pop" */
+      for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+      }
+      const src  = audioCtx.createBufferSource();
+      const gain = audioCtx.createGain();
+      const filt = audioCtx.createBiquadFilter();
+      src.buffer = buf;
+      filt.type  = 'bandpass';
+      filt.frequency.value = 800;
+      src.connect(filt); filt.connect(gain); gain.connect(audioCtx.destination);
+      gain.gain.setValueAtTime(0.6, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      src.start(t);
+    }
+
+    /* Son fanfare tous les 5 ballons */
+    function playMilestone() {
+      if (!audioCtx) return;
+      [523, 659, 784, 1046].forEach((freq, i) => {
+        const t    = audioCtx.currentTime + i * 0.1;
+        const osc  = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'sine'; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.25, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        osc.start(t); osc.stop(t + 0.2);
+      });
+    }
 
     /* --- Crée un ballon et l'ajoute à la zone --- */
     function spawnBalloon() {
+      if (!running) return;  // ne spawne plus si le jeu est arrêté
       const balloon = document.createElement('div');
       balloon.className = 'balloon';
 
@@ -172,6 +359,8 @@
         e.preventDefault(); // évite double-déclenchement sur mobile
         if (balloon.classList.contains('popped')) return;
 
+        unlockAudio();   // déverrouille iOS au premier tap
+        playPop();       // son d'éclatement
         balloon.classList.add('popped');
         spawnParticles(balloon);
 
@@ -191,8 +380,9 @@
         msgEl.textContent = msgs[Math.floor(Math.random() * msgs.length)];
         setTimeout(() => { msgEl.textContent = ''; }, 800);
 
-        // Accélère légèrement le spawn toutes les 5 éclates
+        // Accélère légèrement + fanfare toutes les 5 éclates
         if (score % 5 === 0 && SPAWN_INTERVAL > 500) {
+          playMilestone();
           SPAWN_INTERVAL -= 100;
           restartSpawnTimer();
         }
@@ -206,9 +396,21 @@
 
       area.appendChild(balloon);
 
-      // Supprime automatiquement le ballon s'il atteint le haut sans être cliqué
+      // Ballon raté : enlève une vie
       setTimeout(() => {
-        if (!balloon.classList.contains('popped')) balloon.remove();
+        if (!balloon.classList.contains('popped') && running) {
+          balloon.remove();
+          lives--;
+          renderLives();
+          playLoseLive();
+          msgEl.textContent = '💨 Raté !';
+          setTimeout(() => { if (msgEl.textContent === '💨 Raté !') msgEl.textContent = ''; }, 700);
+          if (lives <= 0) {
+            gameOver();
+          }
+        } else if (!balloon.classList.contains('popped')) {
+          balloon.remove();
+        }
       }, duration * 1000 + 200);
     }
 
@@ -241,7 +443,8 @@
     }
 
     /* --- Démarrage --- */
-    spawnBalloon();          // premier ballon immédiatement
+    running = true;
+    spawnBalloon();
     restartSpawnTimer();
   </script>
 </body>

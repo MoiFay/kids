@@ -8,35 +8,121 @@
   <style>
     body { background: linear-gradient(160deg, #E8F5E9, #F3E5F5); min-height: 100vh; }
 
-    /* Consigne — nom de l'animal */
-    #animal-name {
-      text-align: center;
+    /* ---- Overlay de démarrage (déverrouillage audio mobile) ---- */
+    #unlock-overlay {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(160deg, #2D6A4F, #1B5E20);
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      cursor: pointer;
+    }
+    #unlock-overlay.hidden { display: none; }
+    #unlock-overlay .ul-emoji {
+      font-size: 5rem;
+      animation: bounce 1.5s infinite;
+    }
+    #unlock-overlay h2 {
       font-family: 'Fredoka One', cursive;
-      font-size: 2.4rem;
-      color: #2D6A4F;
-      padding: 14px 16px 4px;
+      color: white;
+      font-size: 2.2rem;
+      text-align: center;
+      padding: 0 24px;
+    }
+    #unlock-overlay p {
+      color: rgba(255,255,255,.75);
+      font-family: 'Nunito', sans-serif;
+      font-size: 1.1rem;
+      text-align: center;
+      padding: 0 24px;
+    }
+    #unlock-overlay .ul-btn {
+      background: #FFD700;
+      color: #1B5E20;
+      border: none;
+      border-radius: 50px;
+      padding: 18px 44px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.6rem;
+      cursor: pointer;
+      box-shadow: 0 6px 0 rgba(0,0,0,.25);
+      animation: star-pulse 1.2s infinite;
+      min-width: 200px;
       min-height: 70px;
     }
 
+    /* ---- Consigne ---- */
     #consigne-txt {
       text-align: center;
       font-family: 'Fredoka One', cursive;
-      font-size: 1.2rem;
+      font-size: 1.15rem;
       color: #888;
-      margin-bottom: 6px;
+      margin: 4px 0 0;
     }
 
-    /* Grille d'animaux */
+    /* Ligne : nom de l'animal + bouton écouter */
+    #name-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 10px 16px 2px;
+      flex-wrap: wrap;
+    }
+
+    #animal-name {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.2rem;
+      color: #2D6A4F;
+      line-height: 1.15;
+    }
+
+    /* Bouton 🔊 pour écouter le nom de l'animal */
+    #btn-speak-animal {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 50px;
+      padding: 10px 20px;
+      font-size: 1.4rem;
+      font-family: 'Fredoka One', cursive;
+      cursor: pointer;
+      box-shadow: 0 4px 0 rgba(0,0,0,.2);
+      min-width: 56px;
+      min-height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform .12s, box-shadow .12s;
+      animation: speak-pulse 2s infinite;
+    }
+    #btn-speak-animal:active {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 rgba(0,0,0,.2);
+    }
+    #btn-speak-animal.speaking {
+      background: #FF8C00;
+      animation: none;
+    }
+    @keyframes speak-pulse {
+      0%, 100% { box-shadow: 0 4px 0 rgba(0,0,0,.2), 0 0 0 0 rgba(76,175,80,.4); }
+      50%       { box-shadow: 0 4px 0 rgba(0,0,0,.2), 0 0 0 10px rgba(76,175,80,0); }
+    }
+
+    /* ---- Grille d'animaux ---- */
     #animal-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 14px;
-      padding: 12px 16px 24px;
+      padding: 10px 16px 24px;
       max-width: 480px;
       margin: 0 auto;
     }
 
-    /* Bouton animal */
     .animal-btn {
       border: 4px solid transparent;
       border-radius: 24px;
@@ -51,30 +137,33 @@
       font-family: 'Fredoka One', cursive;
       transition: transform .15s, box-shadow .15s;
       min-height: 130px;
+      animation: pop-in .35s ease both;
     }
-
     .animal-btn:active {
       transform: translateY(4px);
       box-shadow: 0 1px 0 rgba(0,0,0,.12);
     }
-
     .animal-btn .a-emoji {
       font-size: 3.8rem;
       line-height: 1.1;
       display: block;
     }
-
     .animal-btn .a-name {
       font-size: 1.1rem;
       color: #555;
       margin-top: 6px;
     }
-
-    /* Bordure verte = correct, rouge = mauvais */
     .animal-btn.correct { border-color: #4CAF50; background: #E8F5E9; }
     .animal-btn.wrong   { border-color: #FF4B4B; background: #FFF0F0; }
+    /* Désactivé après un choix */
+    .animal-btn:disabled {
+      opacity: .5;
+      cursor: default;
+      transform: none !important;
+      box-shadow: 0 2px 0 rgba(0,0,0,.08) !important;
+    }
 
-    /* Score + feedback */
+    /* ---- Score ---- */
     #score-zone {
       display: flex;
       justify-content: center;
@@ -90,72 +179,207 @@
       box-shadow: 0 3px 8px rgba(0,0,0,.1);
     }
 
+    /* ---- Feedback ---- */
     #feedback {
       text-align: center;
       font-family: 'Fredoka One', cursive;
-      font-size: 2rem;
+      font-size: 1.8rem;
       min-height: 55px;
-      padding: 6px;
+      padding: 6px 12px;
     }
 
-    /* Animation entrée des boutons */
     @keyframes pop-in {
       0%   { transform: scale(0.6); opacity: 0; }
       70%  { transform: scale(1.08); opacity: 1; }
       100% { transform: scale(1);    opacity: 1; }
     }
-    .animal-btn { animation: pop-in .35s ease both; }
   </style>
 </head>
 <body>
+
+  <!-- ============================================================
+    OVERLAY "Appuie pour commencer"
+    Obligatoire sur iOS/Android : sans premier geste utilisateur,
+    AudioContext et SpeechSynthesis sont bloqués par le navigateur.
+    ============================================================ -->
+  <div id="unlock-overlay" role="dialog" aria-modal="true" aria-label="Démarrer le jeu">
+    <span class="ul-emoji" aria-hidden="true">🐾</span>
+    <h2>Les Animaux !</h2>
+    <p>Appuie pour entendre les animaux 🔊</p>
+    <button class="ul-btn" id="btn-unlock">▶ Jouer !</button>
+  </div>
 
   <nav class="nav-bar">
     <a href="index.html" class="btn-home" aria-label="Retour au menu">🏠</a>
     <span class="nav-title">🐾 Les Animaux !</span>
   </nav>
 
+  <!-- Score -->
   <div id="score-zone">
     ✅ <span id="good">0</span> &nbsp; ❌ <span id="bad">0</span>
   </div>
 
-  <p id="consigne-txt">Clique sur l'animal !</p>
-  <div id="animal-name" aria-live="polite"></div>
-  <div id="feedback"    aria-live="polite"></div>
+  <p id="consigne-txt">Écoute et clique sur le bon animal !</p>
 
+  <!-- Nom de l'animal + bouton écouter -->
+  <div id="name-row">
+    <div id="animal-name" aria-live="polite"></div>
+    <button id="btn-speak-animal" aria-label="Écouter le nom de l'animal">🔊</button>
+  </div>
+
+  <!-- Feedback -->
+  <div id="feedback" aria-live="polite"></div>
+
+  <!-- Grille des 4 animaux -->
   <div id="animal-grid" role="list" aria-label="Grille d'animaux"></div>
 
   <script>
     /* ============================================================
-       Jeu : Cliquer sur le bon animal
+       Jeu : Cliquer sur le bon animal  — v2
        ============================================================
-       Principe : un nom d'animal apparaît. L'enfant doit cliquer
-       sur la bonne image parmi 4 propositions.
+       Nouveautés :
+         - Overlay de déverrouillage audio (iOS/Android)
+         - AudioContext unique et partagé
+         - speak() en français : nom de l'animal + cri à la bonne réponse
+         - Bouton 🔊 pour ré-entendre le nom à tout moment
+         - Tous les boutons désactivés dès le premier clic
+         - Articles corrects (le / la / l')
+         - 4 animaux supplémentaires (canard, abeille, serpent, tigre)
        ============================================================ */
 
     const ANIMALS = [
-      { name: 'Chien',     emoji: '🐶', sound: 'Ouaf ouaf !' },
-      { name: 'Chat',      emoji: '🐱', sound: 'Miaou !'     },
-      { name: 'Vache',     emoji: '🐮', sound: 'Meuh !'      },
-      { name: 'Cochon',    emoji: '🐷', sound: 'Groin groin !'},
-      { name: 'Mouton',    emoji: '🐑', sound: 'Bêê !'       },
-      { name: 'Poulet',    emoji: '🐔', sound: 'Cot cot !'   },
-      { name: 'Grenouille',emoji: '🐸', sound: 'Coâ coâ !'   },
-      { name: 'Lapin',     emoji: '🐰', sound: '...'         },
-      { name: 'Lion',      emoji: '🦁', sound: 'ROARRR !'    },
-      { name: 'Éléphant',  emoji: '🐘', sound: 'Barrit !'    },
-      { name: 'Singe',     emoji: '🐵', sound: 'Ouh ouh !'   },
-      { name: 'Pingouin',  emoji: '🐧', sound: '...'         },
+      { name: 'Chien',      article: 'le',  emoji: '🐶', cry: 'Ouaf ouaf !'   },
+      { name: 'Chat',       article: 'le',  emoji: '🐱', cry: 'Miaou !'       },
+      { name: 'Vache',      article: 'la',  emoji: '🐮', cry: 'Meuh !'        },
+      { name: 'Cochon',     article: 'le',  emoji: '🐷', cry: 'Groin groin !' },
+      { name: 'Mouton',     article: 'le',  emoji: '🐑', cry: 'Bêê !'         },
+      { name: 'Poulet',     article: 'le',  emoji: '🐔', cry: 'Cot cot !'     },
+      { name: 'Grenouille', article: 'la',  emoji: '🐸', cry: 'Coâ coâ !'     },
+      { name: 'Lapin',      article: 'le',  emoji: '🐰', cry: 'Cui cui !'     },
+      { name: 'Lion',       article: 'le',  emoji: '🦁', cry: 'Roarrr !'      },
+      { name: 'Éléphant',   article: "l'",  emoji: '🐘', cry: 'Barriiit !'    },
+      { name: 'Singe',      article: 'le',  emoji: '🐵', cry: 'Ouh ouh !'     },
+      { name: 'Pingouin',   article: 'le',  emoji: '🐧', cry: 'Couac !'       },
+      { name: 'Canard',     article: 'le',  emoji: '🦆', cry: 'Coin coin !'   },
+      { name: 'Abeille',    article: "l'",  emoji: '🐝', cry: 'Bzzzz !'       },
+      { name: 'Serpent',    article: 'le',  emoji: '🐍', cry: 'Ssssss !'      },
+      { name: 'Tigre',      article: 'le',  emoji: '🐯', cry: 'Grrr !'        },
     ];
 
-    let goodCount = 0, badCount = 0, targetIdx = 0, choices = [];
-    let locked = false;
+    /* ---- État global ---- */
+    let goodCount     = 0, badCount = 0;
+    let choices       = [], targetIdx = 0;
+    let locked        = false;
+    let audioUnlocked = false;
+    let audioCtx      = null;
+    let frVoice       = null;  // voix française pour SpeechSynthesis
 
-    const nameEl     = document.getElementById('animal-name');
-    const gridEl     = document.getElementById('animal-grid');
-    const feedbackEl = document.getElementById('feedback');
-    const goodEl     = document.getElementById('good');
-    const badEl      = document.getElementById('bad');
+    /* ---- Éléments DOM ---- */
+    const unlockOverlay = document.getElementById('unlock-overlay');
+    const btnUnlock     = document.getElementById('btn-unlock');
+    const nameEl        = document.getElementById('animal-name');
+    const btnSpeak      = document.getElementById('btn-speak-animal');
+    const gridEl        = document.getElementById('animal-grid');
+    const feedbackEl    = document.getElementById('feedback');
+    const goodEl        = document.getElementById('good');
+    const badEl         = document.getElementById('bad');
 
+    /* ============================================================
+       SPEECHSYNTHESIS — chargement des voix
+       Les navigateurs mobiles chargent les voix de façon asynchrone.
+       ============================================================ */
+    function loadVoices() {
+      if (!window.speechSynthesis) return;
+      const voices = window.speechSynthesis.getVoices();
+      frVoice = voices.find(v => v.lang === 'fr-FR')
+             || voices.find(v => v.lang.startsWith('fr'))
+             || null;
+    }
+    if (window.speechSynthesis) {
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+
+    /* ============================================================
+       DÉVERROUILLAGE AUDIO
+       iOS et Android bloquent AudioContext et SpeechSynthesis
+       si aucun geste utilisateur n'a eu lieu. L'overlay force
+       ce premier geste.
+       ============================================================ */
+    function unlockAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      /* Utterance silencieuse pour débloquer iOS SpeechSynthesis */
+      if (window.speechSynthesis) {
+        const silent = new SpeechSynthesisUtterance(' ');
+        silent.volume = 0;
+        silent.lang   = 'fr-FR';
+        window.speechSynthesis.speak(silent);
+      }
+      audioUnlocked = true;
+    }
+
+    /* ============================================================
+       SPEAK — prononce un texte en français
+       ⚠️  Toujours appelé directement depuis un event handler.
+           Jamais depuis setTimeout (iOS bloque sinon).
+       ============================================================ */
+    function speak(text, onEnd) {
+      if (!audioUnlocked || !window.speechSynthesis) {
+        if (onEnd) onEnd();
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utter   = new SpeechSynthesisUtterance(text);
+      utter.lang    = 'fr-FR';
+      utter.rate    = 0.88;
+      utter.pitch   = 1.15;
+      if (frVoice) utter.voice = frVoice;
+      if (onEnd) utter.onend = onEnd;
+      window.speechSynthesis.speak(utter);
+    }
+
+    /* ============================================================
+       SONS — succès (mélodie) et erreur (bip grave)
+       ============================================================ */
+    function resumeCtx() {
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playSuccess() {
+      resumeCtx();
+      if (!audioCtx) return;
+      [523, 659, 784, 1046].forEach((freq, i) => {
+        const t    = audioCtx.currentTime + i * 0.13;
+        const osc  = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'sine'; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.28, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+        osc.start(t); osc.stop(t + 0.24);
+      });
+    }
+
+    function playError() {
+      resumeCtx();
+      if (!audioCtx) return;
+      const t    = audioCtx.currentTime;
+      const osc  = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.type = 'sawtooth'; osc.frequency.value = 180;
+      gain.gain.setValueAtTime(0.22, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      osc.start(t); osc.stop(t + 0.42);
+    }
+
+    /* ============================================================
+       LOGIQUE DU JEU
+       ============================================================ */
     function shuffle(arr) {
       const a = [...arr];
       for (let i = a.length - 1; i > 0; i--) {
@@ -165,49 +389,76 @@
       return a;
     }
 
+    /* "Il s'agit du Chien", "de la Vache", "de l'Éléphant" */
+    function agitArticle(animal) {
+      if (animal.article === 'le')  return 'du';
+      if (animal.article === 'la')  return 'de la';
+      return "de l'"; // l'
+    }
+
+    /* Texte de la consigne parlée : "Trouve le Chien" */
+    function consigneText(animal) {
+      return 'Trouve ' + animal.article + ' ' + animal.name;
+    }
+
     function newRound() {
       locked = false;
       feedbackEl.textContent = '';
 
-      // 4 animaux aléatoires
-      choices = shuffle(ANIMALS).slice(0, 4);
+      /* 4 animaux aléatoires (sans doublon) */
+      choices   = shuffle(ANIMALS).slice(0, 4);
       targetIdx = Math.floor(Math.random() * 4);
       const target = choices[targetIdx];
 
-      // Affiche le nom de l'animal à trouver
-      nameEl.textContent = '👉 Trouve le ' + target.name + ' !';
+      /* Affiche la consigne écrite */
+      nameEl.textContent = '👉 ' + consigneText(target) + ' !';
 
-      // Crée les boutons
+      /* Remet le bouton 🔊 en vert */
+      btnSpeak.classList.remove('speaking');
+
+      /* Construit la grille */
       gridEl.innerHTML = '';
       choices.forEach((animal, i) => {
         const btn = document.createElement('button');
         btn.className = 'animal-btn';
         btn.setAttribute('aria-label', animal.name);
         btn.style.animationDelay = (i * 0.08) + 's';
-        btn.innerHTML = `<span class="a-emoji">${animal.emoji}</span>
-                         <span class="a-name">${animal.name}</span>`;
+        btn.innerHTML =
+          `<span class="a-emoji">${animal.emoji}</span>
+           <span class="a-name">${animal.name}</span>`;
 
         function handleTap(e) {
           e.preventDefault();
           if (locked) return;
           locked = true;
+          resumeCtx();
+
+          /* Désactive TOUS les boutons immédiatement */
+          gridEl.querySelectorAll('.animal-btn').forEach(b => b.disabled = true);
 
           if (i === targetIdx) {
+            /* ✅ Bonne réponse */
             goodCount++;
             goodEl.textContent = goodCount;
             btn.classList.add('correct');
+            playSuccess();
             feedbackEl.style.color = '#4CAF50';
-            feedbackEl.textContent = '🌟 Bravo ! ' + target.sound;
-            setTimeout(newRound, 1400);
+            feedbackEl.textContent = '🌟 Bravo ! C\'est bien ' + target.article + ' ' + target.name + ' !';
+            /* Prononce "Bravo ! C'est le/la [animal]" — différent de la consigne */
+            speak('Bravo ! C\'est ' + target.article + ' ' + target.name + ' !');
+            setTimeout(newRound, 2200);
           } else {
+            /* ❌ Mauvaise réponse */
             badCount++;
             badEl.textContent = badCount;
             btn.classList.add('wrong');
-            feedbackEl.style.color = '#FF4B4B';
-            feedbackEl.textContent = '❌ Non ! Cherche encore !';
-            // Montre le bon
+            playError();
+            /* Met en vert la bonne réponse */
             gridEl.querySelectorAll('.animal-btn')[targetIdx].classList.add('correct');
-            setTimeout(newRound, 1800);
+            feedbackEl.style.color = '#FF4B4B';
+            feedbackEl.textContent = '❌ C\'était ' + target.article + ' ' + target.name + ' !';
+            speak('Faux ! Tu as appuyé sur ' + animal.article + ' ' + animal.name + ' !');
+            setTimeout(newRound, 2400);
           }
         }
 
@@ -215,9 +466,40 @@
         btn.addEventListener('touchstart', handleTap, { passive: false });
         gridEl.appendChild(btn);
       });
+
+      /* ⚠️  Pas de speak() ici — newRound() peut être appelée
+         depuis setTimeout, ce qui bloquerait iOS. */
     }
 
-    newRound();
+    /* ---- Bouton 🔊 : prononce le nom de l'animal cible ---- */
+    function handleSpeakBtn(e) {
+      e.preventDefault();
+      resumeCtx();
+      if (choices.length > 0) {
+        const target = choices[targetIdx];
+        btnSpeak.classList.add('speaking');
+        speak(consigneText(target), () => btnSpeak.classList.remove('speaking'));
+      }
+    }
+    btnSpeak.addEventListener('click',      handleSpeakBtn, { passive: false });
+    btnSpeak.addEventListener('touchstart', handleSpeakBtn, { passive: false });
+
+    /* ============================================================
+       OVERLAY DE DÉMARRAGE
+       handleUnlock est appelé directement par un tap → on peut
+       appeler unlockAudio() ET speak() ici en toute sécurité.
+       ============================================================ */
+    function handleUnlock(e) {
+      e.preventDefault();
+      unlockAudio();                          // déverrouille AudioContext + SpeechSynthesis
+      unlockOverlay.classList.add('hidden');  // masque l'overlay
+      newRound();                             // prépare la première question
+      /* Prononce la consigne directement depuis ce tap */
+      const target = choices[targetIdx];
+      speak(consigneText(target));
+    }
+    btnUnlock.addEventListener('click',      handleUnlock, { passive: false });
+    btnUnlock.addEventListener('touchstart', handleUnlock, { passive: false });
   </script>
 </body>
 </html>
