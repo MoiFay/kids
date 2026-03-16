@@ -8,7 +8,7 @@
   <style>
     body { background: linear-gradient(160deg, #FFFDE7, #FFF3E0); min-height: 100vh; }
 
-    /* Info et score en haut */
+    /* ---- Barre du haut : score + vies ---- */
     #top-bar {
       display: flex;
       align-items: center;
@@ -25,12 +25,22 @@
       color: #444;
     }
 
+    /* Cœurs */
+    #lives-bar {
+      text-align: center;
+      font-size: 2rem;
+      letter-spacing: 6px;
+      padding: 2px 0 4px;
+      min-height: 44px;
+    }
+
+    /* Consigne */
     #consigne {
       text-align: center;
       font-family: 'Fredoka One', cursive;
       font-size: 1.7rem;
       color: #E65100;
-      padding: 4px 12px 8px;
+      padding: 4px 12px 6px;
       min-height: 54px;
     }
 
@@ -38,7 +48,7 @@
     #fruit-area {
       position: relative;
       width: 100%;
-      height: calc(100vh - 170px);
+      height: calc(100vh - 210px);
       overflow: hidden;
     }
 
@@ -63,15 +73,18 @@
       to   { transform: translateY(110vh) rotate(360deg); }
     }
 
-    @keyframes catch {
+    /* Fruit attrapé */
+    @keyframes catch-anim {
       0%   { transform: scale(1);   opacity: 1; }
       50%  { transform: scale(1.7); opacity: .7; }
       100% { transform: scale(0);   opacity: 0; }
     }
+    .fruit.caught {
+      animation: catch-anim .3s ease forwards !important;
+      pointer-events: none;
+    }
 
-    .fruit.caught { animation: catch .3s ease forwards !important; pointer-events: none; }
-
-    /* Mauvais fruit = secousse */
+    /* Mauvais fruit — secousse */
     @keyframes shake {
       0%, 100% { transform: translateX(0); }
       20%       { transform: translateX(-10px); }
@@ -81,13 +94,21 @@
     }
     .fruit.wrong-shake { animation: shake .4s ease !important; }
 
-    /* Feedback flottant */
+    /* Fruit raté — fond rouge flash */
+    .fruit.missed {
+      animation: none !important;
+      filter: grayscale(1) brightness(.5);
+      opacity: 0.4;
+    }
+
+    /* Message flottant */
     .float-msg {
       position: absolute;
       font-family: 'Fredoka One', cursive;
       font-size: 1.6rem;
       pointer-events: none;
       animation: float-up .8s ease forwards;
+      z-index: 10;
     }
     @keyframes float-up {
       0%   { opacity: 1; transform: translateY(0);    }
@@ -104,7 +125,7 @@
       align-items: center;
       justify-content: center;
     }
-    #end-overlay.show { display: flex; }
+    #end-overlay.show { display: flex; animation: fadeIn .3s ease; }
     #end-box {
       background: white;
       border-radius: 28px;
@@ -114,9 +135,23 @@
       width: 90%;
       box-shadow: 0 16px 40px rgba(0,0,0,.3);
     }
-    #end-box .big { font-size: 3.5rem; display: block; margin-bottom: 10px; }
-    #end-box h2   { font-family: 'Fredoka One', cursive; font-size: 2rem; color: #333; }
-    #end-box p    { color: #777; margin: 8px 0 20px; font-size: 1.1rem; }
+    #end-box .big { font-size: 3.5rem; display: block; margin-bottom: 10px; animation: bounce 1s infinite; }
+    #end-box h2   { font-family: 'Fredoka One', cursive; font-size: 2rem; color: #333; margin: 0 0 6px; }
+    #end-box p    { color: #777; margin: 0 0 20px; font-size: 1.1rem; }
+    .end-btns     { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .end-btns button, .end-btns a {
+      background: var(--col-green);
+      color: white;
+      border: none;
+      border-radius: 50px;
+      padding: 12px 22px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.1rem;
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 4px 0 rgba(0,0,0,.15);
+    }
+    .end-btns a { background: var(--col-orange); }
   </style>
 </head>
 <body>
@@ -126,14 +161,16 @@
     <span class="nav-title">🍎 Attrape les fruits !</span>
   </nav>
 
-  <!-- Score / timer -->
+  <!-- Score -->
   <div id="top-bar">
     <div class="pill">🍓 Score : <span id="score">0</span></div>
-    <div class="pill">⏱️ <span id="timer">30</span>s</div>
-    <div class="pill">❌ <span id="miss">0</span></div>
+    <div class="pill">🏆 Record : <span id="record">0</span></div>
   </div>
 
-  <!-- Consigne : quel fruit attraper -->
+  <!-- Vies (cœurs) -->
+  <div id="lives-bar" aria-live="polite"></div>
+
+  <!-- Consigne -->
   <div id="consigne" aria-live="polite"></div>
 
   <!-- Terrain -->
@@ -142,115 +179,217 @@
   <!-- Overlay fin de partie -->
   <div id="end-overlay">
     <div id="end-box">
-      <span class="big">🏆</span>
-      <h2>Temps écoulé !</h2>
+      <span class="big" id="end-emoji">💔</span>
+      <h2 id="end-title">Perdu !</h2>
       <p id="end-score"></p>
-      <button class="btn-action" onclick="startGame()" style="margin-right:12px">🔄 Rejouer</button>
-      <a href="index.html" class="btn-action" style="background:var(--col-orange);text-decoration:none">🏠 Accueil</a>
+      <div class="end-btns">
+        <button id="btn-restart">🔄 Rejouer</button>
+        <a href="index.html">🏠 Accueil</a>
+      </div>
     </div>
   </div>
 
   <script>
     /* ============================================================
-       Jeu : Attraper les fruits
+       Jeu : Attraper les fruits — v2 (3 vies, pas de timer)
        ============================================================
-       Des fruits tombent depuis le haut. Un type de fruit est
-       demandé. L'enfant doit cliquer uniquement sur ce fruit.
-       Toucher un mauvais fruit = -1 erreur.
-       Timer de 30 secondes.
+       Règles :
+         - Le jeu demande d'attraper un type de fruit
+         - Attraper le bon fruit = +1 point 🌟
+         - Rater le fruit demandé (il tombe sans être cliqué) = -1 vie ❤️
+         - Cliquer sur le mauvais fruit = -1 vie ❤️
+         - 0 vie = game over
+         - Cible change tous les 5 fruits attrapés
        ============================================================ */
 
+    const MAX_LIVES = 3;
+
     const ALL_FRUITS = [
-      { name: 'Pomme',       emoji: '🍎' },
-      { name: 'Banane',      emoji: '🍌' },
-      { name: 'Orange',      emoji: '🍊' },
-      { name: 'Fraise',      emoji: '🍓' },
-      { name: 'Raisin',      emoji: '🍇' },
-      { name: 'Pastèque',    emoji: '🍉' },
-      { name: 'Pêche',       emoji: '🍑' },
-      { name: 'Ananas',      emoji: '🍍' },
+      { name: 'Pomme',    emoji: '🍎' },
+      { name: 'Banane',   emoji: '🍌' },
+      { name: 'Orange',   emoji: '🍊' },
+      { name: 'Fraise',   emoji: '🍓' },
+      { name: 'Raisin',   emoji: '🍇' },
+      { name: 'Pastèque', emoji: '🍉' },
+      { name: 'Pêche',    emoji: '🍑' },
+      { name: 'Ananas',   emoji: '🍍' },
     ];
 
-    let score = 0, miss = 0, timeLeft = 30;
-    let target = null;
-    let spawnInterval = null, timerInterval = null;
-    let running = false;
+    let score        = 0;
+    let lives        = MAX_LIVES;
+    let target       = null;
+    let running      = false;
+    let spawnInterval= null;
+    let record       = parseInt(localStorage.getItem('fruits-record') || '0');
 
     const scoreEl   = document.getElementById('score');
-    const missEl    = document.getElementById('miss');
-    const timerEl   = document.getElementById('timer');
+    const recordEl  = document.getElementById('record');
+    const livesEl   = document.getElementById('lives-bar');
     const consEl    = document.getElementById('consigne');
     const area      = document.getElementById('fruit-area');
     const endOverlay= document.getElementById('end-overlay');
-    const endScoreEl= document.getElementById('end-score');
+    const endEmoji  = document.getElementById('end-emoji');
+    const endTitle  = document.getElementById('end-title');
+    const endScore  = document.getElementById('end-score');
+    const btnRestart= document.getElementById('btn-restart');
+
+    recordEl.textContent = record;
 
     /* ============================================================
-       AUDIO — sons de capture et d'erreur (iOS/Android safe)
+       AUDIO (iOS/Android safe)
        ============================================================ */
     let audioCtx = null;
     function unlockAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
-      try { const b=audioCtx.createBuffer(1,1,22050),s=audioCtx.createBufferSource(); s.buffer=b; s.connect(audioCtx.destination); s.start(0); } catch(e) {}
+      try {
+        const b = audioCtx.createBuffer(1,1,22050);
+        const s = audioCtx.createBufferSource();
+        s.buffer = b; s.connect(audioCtx.destination); s.start(0);
+      } catch(e) {}
     }
     function playCatch() {
       if (!audioCtx) return;
-      const t=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.type='sine'; o.frequency.setValueAtTime(400,t); o.frequency.exponentialRampToValueAtTime(800,t+0.1); g.gain.setValueAtTime(0.25,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.15); o.start(t); o.stop(t+0.17);
+      const t=audioCtx.currentTime, o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      o.type='sine';
+      o.frequency.setValueAtTime(400,t);
+      o.frequency.exponentialRampToValueAtTime(800,t+0.1);
+      g.gain.setValueAtTime(0.25,t);
+      g.gain.exponentialRampToValueAtTime(0.001,t+0.15);
+      o.start(t); o.stop(t+0.17);
     }
-    function playBadFruit() {
+    function playLoseLife() {
       if (!audioCtx) return;
-      const t=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.type='sawtooth'; o.frequency.value=180; g.gain.setValueAtTime(0.18,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3); o.start(t); o.stop(t+0.32);
+      [300,220].forEach((f,i) => {
+        const t=audioCtx.currentTime+i*0.14, o=audioCtx.createOscillator(), g=audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type='sawtooth'; o.frequency.value=f;
+        g.gain.setValueAtTime(0.2,t);
+        g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+        o.start(t); o.stop(t+0.2);
+      });
+    }
+    function playGameOver() {
+      if (!audioCtx) return;
+      [300,250,180].forEach((f,i) => {
+        const t=audioCtx.currentTime+i*0.15, o=audioCtx.createOscillator(), g=audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type='sawtooth'; o.frequency.value=f;
+        g.gain.setValueAtTime(0.22,t);
+        g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+        o.start(t); o.stop(t+0.2);
+      });
     }
 
-    /* --- Choisit un nouveau fruit cible --- */
+    /* ============================================================
+       AFFICHAGE DES VIES
+       ============================================================ */
+    function renderLives() {
+      livesEl.textContent = '❤️'.repeat(lives) + '🖤'.repeat(MAX_LIVES - lives);
+    }
+
+    /* ============================================================
+       PERTE DE VIE
+       ============================================================ */
+    function loseLife(reason) {
+      if (!running) return;
+      lives--;
+      renderLives();
+      playLoseLife();
+      showFloatMsg(reason, area.clientWidth / 2, 20, '#FF4B4B');
+      if (lives <= 0) {
+        gameOver();
+      }
+    }
+
+    /* ============================================================
+       GAME OVER
+       ============================================================ */
+    function gameOver() {
+      running = false;
+      clearInterval(spawnInterval);
+      area.innerHTML = '';
+      playGameOver();
+
+      if (score > record) {
+        record = score;
+        localStorage.setItem('fruits-record', record);
+        recordEl.textContent = record;
+        endEmoji.textContent = '🏆';
+        endTitle.textContent = 'Nouveau record !';
+      } else if (score >= 10) {
+        endEmoji.textContent = '🌟';
+        endTitle.textContent = 'Bravo !';
+      } else {
+        endEmoji.textContent = '💔';
+        endTitle.textContent = 'Perdu !';
+      }
+      endScore.textContent = 'Tu as attrapé ' + score + ' fruit' + (score > 1 ? 's' : '') + ' !';
+      endOverlay.classList.add('show');
+    }
+
+    /* ============================================================
+       CIBLE
+       ============================================================ */
     function pickTarget() {
       const idx = Math.floor(Math.random() * ALL_FRUITS.length);
       target = ALL_FRUITS[idx];
       consEl.textContent = '👉 Attrape les ' + target.name + 's ! ' + target.emoji;
     }
 
-    /* --- Crée un fruit tombant --- */
+    /* ============================================================
+       SPAWN D'UN FRUIT
+       ============================================================ */
     function spawnFruit() {
       if (!running) return;
-      // Choix aléatoire dans tous les fruits (plus de chances d'avoir la cible)
-      const pool = [...ALL_FRUITS, ...ALL_FRUITS, target, target]; // doublon cible
+
+      /* Pool : plus de chances d'avoir la cible pour les enfants */
+      const pool = [...ALL_FRUITS, target, target, target];
       const chosen = pool[Math.floor(Math.random() * pool.length)];
 
       const fruit = document.createElement('div');
-      fruit.className = 'fruit';
+      fruit.className  = 'fruit';
       fruit.textContent = chosen.emoji;
-      fruit.dataset.name = chosen.name;
 
-      const areaW  = area.clientWidth;
-      const left   = Math.random() * (areaW - 80) + 5;
+      const areaW   = area.clientWidth;
+      const left    = Math.random() * (areaW - 80) + 5;
       fruit.style.left = left + 'px';
 
-      const duration = (Math.random() * 2.5 + 2).toFixed(1);
+      /* Durée de chute : 3 à 5s, assez lent pour les petits */
+      const duration = (Math.random() * 2 + 3).toFixed(1);
       fruit.style.animationDuration = duration + 's';
 
-      /* --- Gestion du clic / touch --- */
+      const isTarget = chosen.name === target.name;
+
+      /* ---- Tap sur le fruit ---- */
       function handleTap(e) {
         e.preventDefault();
         if (!running) return;
+        if (fruit.classList.contains('caught') || fruit.classList.contains('wrong-shake')) return;
 
         unlockAudio();
-        if (chosen.name === target.name) {
-          // Bon fruit !
+
+        if (isTarget) {
+          /* ✅ Bon fruit */
+          fruit.classList.add('caught');
           playCatch();
           score++;
           scoreEl.textContent = score;
-          fruit.classList.add('caught');
-          showFloatMsg('+1 🌟', left + 20, parseFloat(fruit.style.top || '0'), '#4CAF50');
-          // Changement de cible de temps en temps
+          if (score > record) {
+            record = score;
+            localStorage.setItem('fruits-record', record);
+            recordEl.textContent = record;
+          }
+          showFloatMsg('+1 🌟', left + 20, 40, '#4CAF50');
+          /* Change de cible tous les 5 fruits */
           if (score % 5 === 0) pickTarget();
           setTimeout(() => fruit.remove(), 350);
         } else {
-          // Mauvais fruit
-          playBadFruit();
-          miss++;
-          missEl.textContent = miss;
+          /* ❌ Mauvais fruit */
           fruit.classList.add('wrong-shake');
-          showFloatMsg('❌', left + 20, parseFloat(fruit.style.top || '0'), '#FF4B4B');
+          showFloatMsg('💔 Mauvais fruit !', left, 40, '#FF4B4B');
+          loseLife('💔');
           setTimeout(() => fruit.classList.remove('wrong-shake'), 450);
         }
       }
@@ -259,50 +398,52 @@
       fruit.addEventListener('touchstart', handleTap, { passive: false });
 
       area.appendChild(fruit);
-      setTimeout(() => fruit.remove(), duration * 1000 + 200);
+
+      /* Le fruit touche le bas — si c'était la cible, -1 vie */
+      setTimeout(() => {
+        if (!fruit.isConnected) return;  // déjà supprimé (attrapé)
+        if (running && isTarget && !fruit.classList.contains('caught')) {
+          loseLife('💨 Raté !');
+        }
+        fruit.remove();
+      }, parseFloat(duration) * 1000 + 100);
     }
 
-    /* --- Message flottant --- */
+    /* ============================================================
+       MESSAGE FLOTTANT
+       ============================================================ */
     function showFloatMsg(text, x, y, color) {
       const msg = document.createElement('div');
-      msg.className = 'float-msg';
+      msg.className   = 'float-msg';
       msg.textContent = text;
-      msg.style.left  = x + 'px';
-      msg.style.top   = (y + 20) + 'px';
+      msg.style.left  = Math.max(0, x) + 'px';
+      msg.style.top   = y + 'px';
       msg.style.color = color;
       area.appendChild(msg);
       setTimeout(() => msg.remove(), 900);
     }
 
-    /* --- Démarre / réinitialise le jeu --- */
+    /* ============================================================
+       DÉMARRAGE
+       ============================================================ */
     function startGame() {
-      score = 0; miss = 0; timeLeft = 30; running = true;
+      score    = 0;
+      lives    = MAX_LIVES;
+      running  = true;
       scoreEl.textContent = '0';
-      missEl.textContent  = '0';
-      timerEl.textContent = '30';
+      renderLives();
       area.innerHTML = '';
       endOverlay.classList.remove('show');
-
       pickTarget();
-
       clearInterval(spawnInterval);
-      clearInterval(timerInterval);
-
-      spawnInterval = setInterval(spawnFruit, 900);
-
-      timerInterval = setInterval(() => {
-        timeLeft--;
-        timerEl.textContent = timeLeft;
-        if (timeLeft <= 0) {
-          running = false;
-          clearInterval(spawnInterval);
-          clearInterval(timerInterval);
-          endScoreEl.textContent = 'Tu as attrapé ' + score + ' fruit' + (score > 1 ? 's' : '') + ' ! 🎉';
-          endOverlay.classList.add('show');
-        }
-      }, 1000);
+      spawnInterval = setInterval(spawnFruit, 1000);
     }
 
+    /* Bouton rejouer */
+    btnRestart.addEventListener('click', () => { unlockAudio(); startGame(); });
+    btnRestart.addEventListener('touchstart', e => { e.preventDefault(); unlockAudio(); startGame(); }, { passive: false });
+
+    /* Démarrage automatique */
     startGame();
   </script>
 </body>

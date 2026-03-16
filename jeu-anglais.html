@@ -402,46 +402,50 @@
     /* ============================================================
        SPEECHSYNTHESIS — chargement des voix
        ============================================================ */
+    /* ============================================================
+       SpeechSynthesis — robuste iOS Safari
+       ============================================================
+       1. speak() indépendant de audioUnlocked
+       2. PAS de utter.voice — instable sur iOS (on utilise utter.lang)
+       3. PAS de cancel() systématique — tue la queue iOS
+       4. Keepalive : iOS gèle speechSynthesis après ~15s sans appel
+       ============================================================ */
+    let speechReady = false;
+
     function loadVoices() {
       if (!window.speechSynthesis) return;
       const voices = window.speechSynthesis.getVoices();
-      /* Priorité : en-GB > en-US > n'importe quelle voix anglaise */
-      engVoice = voices.find(v => v.lang === 'en-GB')
-              || voices.find(v => v.lang === 'en-US')
-              || voices.find(v => v.lang.startsWith('en'))
-              || null;
-      speechInfoEl.textContent = engVoice
-        ? '🔊 Appuie sur le bouton pour entendre le mot en anglais !'
-        : (voices.length > 0 ? '🔊 Prononciation activée' : '');
+      if (voices.length > 0) {
+        speechReady = true;
+        speechInfoEl.textContent = '🔊 Appuie sur le bouton pour entendre le mot en anglais !';
+      }
     }
-
-    /* Les navigateurs mobiles chargent les voix de façon asynchrone */
     if (window.speechSynthesis) {
       loadVoices();
       window.speechSynthesis.onvoiceschanged = loadVoices;
     }
 
-    /* Prononce un texte en anglais.
-       ⚠️  NE PAS appeler depuis setTimeout sur mobile — toujours
-           depuis un event handler direct (click / touchstart). */
+    /* Keepalive : empêche iOS de geler speechSynthesis */
+    setInterval(() => {
+      if (!window.speechSynthesis || window.speechSynthesis.speaking) return;
+      window.speechSynthesis.pause();
+      window.speechSynthesis.resume();
+    }, 10000);
+
     function speak(text) {
-      if (!audioUnlocked || !window.speechSynthesis) return;
-
-      /* Workaround iOS : annuler avant de relancer évite le gel */
-      window.speechSynthesis.cancel();
-
-      const utter    = new SpeechSynthesisUtterance(text);
-      utter.lang     = 'en-GB';
-      utter.rate     = 0.85;
-      utter.pitch    = 1.1;
-      if (engVoice) utter.voice = engVoice;
-
-      speakBtn.classList.add('speaking');
-      utter.onend = () => speakBtn.classList.remove('speaking');
-
-      /* Workaround iOS : speechSynthesis se "gèle" parfois après
-         quelques minutes sans parole. Ce ping régulier l'évite. */
-      window.speechSynthesis.speak(utter);
+      if (!window.speechSynthesis) return;
+      try {
+        if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang  = 'en-GB';   /* iOS choisit la voix selon lang */
+        utter.rate  = 0.85;
+        utter.pitch = 1.1;
+        /* ⚠️ PAS de utter.voice = ... → instable sur iOS Safari */
+        speakBtn.classList.add('speaking');
+        utter.onend   = () => speakBtn.classList.remove('speaking');
+        utter.onerror = () => speakBtn.classList.remove('speaking');
+        window.speechSynthesis.speak(utter);
+      } catch(e) { speakBtn.classList.remove('speaking'); }
     }
 
     /* ============================================================

@@ -288,58 +288,36 @@
        SPEECHSYNTHESIS — chargement des voix
        Les navigateurs mobiles chargent les voix de façon asynchrone.
        ============================================================ */
-    function loadVoices() {
-      if (!window.speechSynthesis) return;
-      const voices = window.speechSynthesis.getVoices();
-      frVoice = voices.find(v => v.lang === 'fr-FR')
-             || voices.find(v => v.lang.startsWith('fr'))
-             || null;
-    }
+    /* ============================================================
+       SpeechSynthesis — robuste iOS Safari
+       1. PAS de utter.voice — on utilise uniquement utter.lang
+       2. PAS de cancel() systématique
+       3. Keepalive anti-gel iOS
+       4. speak() indépendant de audioUnlocked
+       ============================================================ */
+    function loadVoices() { /* voix choisies automatiquement via lang */ }
     if (window.speechSynthesis) {
-      loadVoices();
       window.speechSynthesis.onvoiceschanged = loadVoices;
     }
 
-    /* ============================================================
-       DÉVERROUILLAGE AUDIO
-       iOS et Android bloquent AudioContext et SpeechSynthesis
-       si aucun geste utilisateur n'a eu lieu. L'overlay force
-       ce premier geste.
-       ============================================================ */
-    function unlockAudio() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (audioCtx.state === 'suspended') audioCtx.resume();
+    setInterval(() => {
+      if (!window.speechSynthesis || window.speechSynthesis.speaking) return;
+      window.speechSynthesis.pause();
+      window.speechSynthesis.resume();
+    }, 10000);
 
-      /* Utterance silencieuse pour débloquer iOS SpeechSynthesis */
-      if (window.speechSynthesis) {
-        const silent = new SpeechSynthesisUtterance(' ');
-        silent.volume = 0;
-        silent.lang   = 'fr-FR';
-        window.speechSynthesis.speak(silent);
-      }
-      audioUnlocked = true;
-    }
-
-    /* ============================================================
-       SPEAK — prononce un texte en français
-       ⚠️  Toujours appelé directement depuis un event handler.
-           Jamais depuis setTimeout (iOS bloque sinon).
-       ============================================================ */
     function speak(text, onEnd) {
-      if (!audioUnlocked || !window.speechSynthesis) {
-        if (onEnd) onEnd();
-        return;
-      }
-      window.speechSynthesis.cancel();
-      const utter   = new SpeechSynthesisUtterance(text);
-      utter.lang    = 'fr-FR';
-      utter.rate    = 0.88;
-      utter.pitch   = 1.15;
-      if (frVoice) utter.voice = frVoice;
-      if (onEnd) utter.onend = onEnd;
-      window.speechSynthesis.speak(utter);
+      if (!window.speechSynthesis) { if (onEnd) onEnd(); return; }
+      try {
+        if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+        const utter  = new SpeechSynthesisUtterance(text);
+        utter.lang   = 'fr-FR';
+        utter.rate   = 0.88;
+        utter.pitch  = 1.15;
+        if (onEnd)  utter.onend   = onEnd;
+        utter.onerror = () => { if (onEnd) onEnd(); };
+        window.speechSynthesis.speak(utter);
+      } catch(e) { if (onEnd) onEnd(); }
     }
 
     /* ============================================================

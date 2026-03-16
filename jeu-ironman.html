@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>🦾 Iron Man</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      background: linear-gradient(180deg, #87CEEB 0%, #B8D4F0 100%);
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #game-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 10px 12px;
+    }
+
+    #canvas-container {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    #game-canvas {
+      display: block;
+      border-radius: 18px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.22);
+      touch-action: none;
+      cursor: pointer;
+      max-width: 100%;
+    }
+
+    /* HUD */
+    #hud {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      padding: 4px 0 8px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.2rem;
+      width: 100%;
+      max-width: 420px;
+    }
+    #hud .pill {
+      background: white;
+      border-radius: 50px;
+      padding: 4px 14px;
+      box-shadow: 0 3px 8px rgba(0,0,0,.12);
+      color: #444;
+    }
+
+    /* Overlay */
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 18px;
+      background: rgba(0,0,0,.35);
+      pointer-events: none;
+    }
+    #overlay.hidden { display: none; }
+    #overlay-box {
+      background: rgba(255,255,255,.95);
+      border-radius: 22px;
+      padding: 22px 28px;
+      text-align: center;
+      max-width: 280px;
+      width: 88%;
+    }
+    #overlay-box .ov-big  { font-size: 3rem; display: block; margin-bottom: 6px; }
+    #overlay-box h2 {
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.7rem;
+      color: #C62828;
+      margin: 0 0 4px;
+    }
+    #overlay-box p  { color: #777; font-size: .95rem; margin: 0; }
+    #overlay-box .tap-hint {
+      margin-top: 14px;
+      background: #C62828;
+      color: white;
+      border-radius: 50px;
+      padding: 10px 24px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.2rem;
+      display: inline-block;
+      animation: star-pulse 1s infinite;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="nav-bar">
+    <a href="index.html" class="btn-home" aria-label="Retour au menu">🏠</a>
+    <span class="nav-title">🦾 Iron Man !</span>
+  </nav>
+
+  <div id="game-wrap">
+    <div id="hud">
+      <div class="pill">⭐ Score : <span id="score-el">0</span></div>
+      <div class="pill">🏆 Record : <span id="record-el">0</span></div>
+    </div>
+
+    <div id="canvas-container">
+      <canvas id="game-canvas"></canvas>
+
+      <div id="overlay">
+        <div id="overlay-box">
+          <span class="ov-big" id="ov-emoji">🦾</span>
+          <h2 id="ov-title">Iron Man !</h2>
+          <p  id="ov-sub">Aide Iron Man à voler dans la ville !</p>
+          <span class="tap-hint">👆 Appuie pour voler !</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ============================================================
+       JEU IRON MAN — style Flappy Bird, adapté enfants
+       ============================================================
+       - Tap/clic = boost de vol (Iron Man monte)
+       - Immeubles qui défilent de droite à gauche
+       - Passage entre les immeubles = +1 point
+       - Vitesse douce et progressive
+       - Iron Man dessiné entièrement en canvas (style cartoon kid)
+       ============================================================ */
+
+    const canvas   = document.getElementById('game-canvas');
+    const ctx      = canvas.getContext('2d');
+    const scoreEl  = document.getElementById('score-el');
+    const recordEl = document.getElementById('record-el');
+    const overlay  = document.getElementById('overlay');
+    const ovEmoji  = document.getElementById('ov-emoji');
+    const ovTitle  = document.getElementById('ov-title');
+    const ovSub    = document.getElementById('ov-sub');
+
+    /* ---- Dimensions responsives ---- */
+    const LOGICAL_W = 420;
+    const LOGICAL_H = 580;
+    let   scale     = 1;
+
+    function resize() {
+      const maxW  = Math.min(window.innerWidth - 20, 420);
+      scale       = maxW / LOGICAL_W;
+      canvas.width  = maxW;
+      canvas.height = LOGICAL_H * scale;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const L = v => v * scale; // logique → pixels canvas
+
+    /* ---- Constantes physiques ---- */
+    const GRAVITY      = 0.10;  // gravité ultra légère
+    const FLAP_FORCE   = -4.8;  // poussée douce
+    const PIPE_W       = 62;    // largeur des immeubles
+    const GAP          = 270;   // espace maximal pour les 3-5 ans
+    const PIPE_SPEED_0 = 1.4;   // très lent au départ
+    const PIPE_SPEED_MAX = 3.2; // vitesse max réduite
+
+    /* ---- État ---- */
+    let state     = 'idle';  // 'idle' | 'playing' | 'dead'
+    let score     = 0;
+    let record    = parseInt(localStorage.getItem('ironman-record') || '0');
+    let pipeSpeed = PIPE_SPEED_0;
+    let pipes     = [];
+    let frameN    = 0;
+    let raf       = null;
+    let thrusterFrame = 0;    // animation propulseurs
+
+    /* ---- Iron Man ---- */
+    const hero = {
+      x:  85,
+      y:  LOGICAL_H / 2,
+      vy: 0,
+      w:  44,
+      h:  52,
+      angle: 0,   // inclinaison selon la vitesse
+    };
+
+    recordEl.textContent = record;
+
+    /* ============================================================
+       AUDIO
+       ============================================================ */
+    let audioCtx = null;
+    function unlockAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      try {
+        const b = audioCtx.createBuffer(1,1,22050);
+        const s = audioCtx.createBufferSource();
+        s.buffer = b; s.connect(audioCtx.destination); s.start(0);
+      } catch(e) {}
+    }
+
+    /* Son de propulseur (boost) */
+    function playBoost() {
+      if (!audioCtx) return;
+      const t   = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const g   = audioCtx.createGain();
+      osc.connect(g); g.connect(audioCtx.destination);
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(180, t);
+      osc.frequency.exponentialRampToValueAtTime(320, t + 0.12);
+      g.gain.setValueAtTime(0.2, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+      osc.start(t); osc.stop(t + 0.2);
+    }
+
+    /* Son de score */
+    function playScore() {
+      if (!audioCtx) return;
+      const t   = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const g   = audioCtx.createGain();
+      osc.connect(g); g.connect(audioCtx.destination);
+      osc.type = 'sine'; osc.frequency.value = 880;
+      g.gain.setValueAtTime(0.15, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+      osc.start(t); osc.stop(t + 0.12);
+    }
+
+    /* Son de crash */
+    function playCrash() {
+      if (!audioCtx) return;
+      [300, 200, 140].forEach((f, i) => {
+        const t  = audioCtx.currentTime + i * 0.1;
+        const o  = audioCtx.createOscillator();
+        const g  = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sawtooth'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.22, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        o.start(t); o.stop(t + 0.14);
+      });
+    }
+
+    /* ============================================================
+       DESSIN D'IRON MAN (style cartoon kid, 100% canvas)
+       ============================================================
+       Corps : ovale rouge
+       Tête  : cercle rouge avec viseur jaune en T
+       Mains : réacteurs jaunes
+       Propulseurs pieds : flamme bleue/orange
+       ============================================================ */
+    function drawIronMan(cx, cy, angle) {
+      ctx.save();
+      ctx.translate(L(cx), L(cy));
+      ctx.rotate(angle);
+      const s = scale;
+
+      /* --- Ombre portée --- */
+      ctx.shadowColor   = 'rgba(0,0,0,.25)';
+      ctx.shadowBlur    = L(8);
+      ctx.shadowOffsetX = L(3);
+      ctx.shadowOffsetY = L(4);
+
+      /* === CORPS === */
+      // Torse rouge
+      ctx.beginPath();
+      ctx.ellipse(0, L(8), L(16), L(22), 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#D32F2F';
+      ctx.fill();
+      // Brillance sur le torse
+      ctx.beginPath();
+      ctx.ellipse(L(-5), L(2), L(6), L(10), -0.3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,.18)';
+      ctx.fill();
+
+      /* Réacteur arc central (cercle jaune brillant) */
+      ctx.beginPath();
+      ctx.arc(0, L(6), L(5.5), 0, Math.PI * 2);
+      ctx.fillStyle = '#FFF176';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, L(6), L(3.5), 0, Math.PI * 2);
+      ctx.fillStyle = '#64B5F6';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, L(6), L(2), 0, Math.PI * 2);
+      ctx.fillStyle = 'white';
+      ctx.fill();
+
+      /* Bandes dorées sur le torse */
+      ctx.strokeStyle = '#FFD600';
+      ctx.lineWidth   = L(2.5);
+      ctx.beginPath(); ctx.moveTo(L(-16), L(0)); ctx.lineTo(L(16), L(0)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(L(-16), L(14)); ctx.lineTo(L(16), L(14)); ctx.stroke();
+
+      /* Abdomen doré */
+      ctx.beginPath();
+      ctx.ellipse(0, L(22), L(12), L(8), 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFD600';
+      ctx.fill();
+
+      /* === BRAS === */
+      // Bras gauche
+      ctx.beginPath();
+      ctx.ellipse(L(-22), L(5), L(7), L(16), -0.2, 0, Math.PI * 2);
+      ctx.fillStyle = '#C62828';
+      ctx.fill();
+      // Avant-bras gauche (doré)
+      ctx.beginPath();
+      ctx.ellipse(L(-25), L(18), L(5.5), L(10), -0.15, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFB300';
+      ctx.fill();
+      // Réacteur main gauche
+      ctx.beginPath();
+      ctx.arc(L(-26), L(27), L(4.5), 0, Math.PI * 2);
+      ctx.fillStyle = '#FFF176';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(L(-26), L(27), L(2.5), 0, Math.PI * 2);
+      ctx.fillStyle = '#64B5F6';
+      ctx.fill();
+
+      // Bras droit
+      ctx.beginPath();
+      ctx.ellipse(L(22), L(5), L(7), L(16), 0.2, 0, Math.PI * 2);
+      ctx.fillStyle = '#C62828';
+      ctx.fill();
+      // Avant-bras droit (doré)
+      ctx.beginPath();
+      ctx.ellipse(L(25), L(18), L(5.5), L(10), 0.15, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFB300';
+      ctx.fill();
+      // Réacteur main droite
+      ctx.beginPath();
+      ctx.arc(L(26), L(27), L(4.5), 0, Math.PI * 2);
+      ctx.fillStyle = '#FFF176';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(L(26), L(27), L(2.5), 0, Math.PI * 2);
+      ctx.fillStyle = '#64B5F6';
+      ctx.fill();
+
+      /* === JAMBES === */
+      // Cuisse gauche
+      ctx.beginPath();
+      ctx.ellipse(L(-9), L(36), L(7), L(12), -0.1, 0, Math.PI * 2);
+      ctx.fillStyle = '#C62828';
+      ctx.fill();
+      // Tibia gauche (doré)
+      ctx.beginPath();
+      ctx.ellipse(L(-10), L(50), L(5.5), L(10), -0.05, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFB300';
+      ctx.fill();
+
+      // Cuisse droite
+      ctx.beginPath();
+      ctx.ellipse(L(9), L(36), L(7), L(12), 0.1, 0, Math.PI * 2);
+      ctx.fillStyle = '#C62828';
+      ctx.fill();
+      // Tibia droit (doré)
+      ctx.beginPath();
+      ctx.ellipse(L(10), L(50), L(5.5), L(10), 0.05, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFB300';
+      ctx.fill();
+
+      /* === PROPULSEURS (animation flamme) === */
+      const flicker = 0.7 + 0.3 * Math.sin(thrusterFrame * 0.6);
+      // Flamme pied gauche
+      const flamGrad = ctx.createRadialGradient(L(-10), L(62), 0, L(-10), L(66), L(9 * flicker));
+      flamGrad.addColorStop(0,   'white');
+      flamGrad.addColorStop(0.3, '#64B5F6');
+      flamGrad.addColorStop(0.7, '#FF6F00');
+      flamGrad.addColorStop(1,   'transparent');
+      ctx.beginPath();
+      ctx.ellipse(L(-10), L(64), L(5 * flicker), L(10 * flicker), 0, 0, Math.PI * 2);
+      ctx.fillStyle = flamGrad;
+      ctx.fill();
+      // Flamme pied droit
+      const flamGrad2 = ctx.createRadialGradient(L(10), L(62), 0, L(10), L(66), L(9 * flicker));
+      flamGrad2.addColorStop(0,   'white');
+      flamGrad2.addColorStop(0.3, '#64B5F6');
+      flamGrad2.addColorStop(0.7, '#FF6F00');
+      flamGrad2.addColorStop(1,   'transparent');
+      ctx.beginPath();
+      ctx.ellipse(L(10), L(64), L(5 * flicker), L(10 * flicker), 0, 0, Math.PI * 2);
+      ctx.fillStyle = flamGrad2;
+      ctx.fill();
+
+      /* === TÊTE === */
+      ctx.shadowBlur = 0;
+      // Casque rouge arrondi
+      ctx.beginPath();
+      ctx.arc(0, L(-18), L(17), 0, Math.PI * 2);
+      ctx.fillStyle = '#D32F2F';
+      ctx.fill();
+      // Partie dorée du masque (mâchoire)
+      ctx.beginPath();
+      ctx.ellipse(0, L(-8), L(13), L(8), 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFB300';
+      ctx.fill();
+      // Visière en T — jaune
+      // Bande horizontale
+      ctx.beginPath();
+      ctx.roundRect(L(-14), L(-22), L(28), L(7), L(3));
+      ctx.fillStyle = '#FFEE58';
+      ctx.fill();
+      // Brillance visor
+      ctx.beginPath();
+      ctx.roundRect(L(-12), L(-21), L(14), L(4), L(2));
+      ctx.fillStyle = 'rgba(255,255,255,.35)';
+      ctx.fill();
+      // Nez vertical (T du masque)
+      ctx.beginPath();
+      ctx.roundRect(L(-3), L(-22), L(6), L(20), L(2));
+      ctx.fillStyle = '#FFEE58';
+      ctx.fill();
+      // Reflets sur le casque
+      ctx.beginPath();
+      ctx.arc(L(-7), L(-24), L(5), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,.15)';
+      ctx.fill();
+      // Contour casque
+      ctx.beginPath();
+      ctx.arc(0, L(-18), L(17), 0, Math.PI * 2);
+      ctx.strokeStyle = '#B71C1C';
+      ctx.lineWidth   = L(1.5);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    /* ============================================================
+       DESSIN DES IMMEUBLES
+       ============================================================ */
+    function drawBuilding(x, topH, botY) {
+      const w = PIPE_W;
+
+      /* --- Immeuble du haut --- */
+      // Corps
+      const gTop = ctx.createLinearGradient(L(x), 0, L(x + w), 0);
+      gTop.addColorStop(0,   '#546E7A');
+      gTop.addColorStop(0.4, '#78909C');
+      gTop.addColorStop(1,   '#37474F');
+      ctx.fillStyle = gTop;
+      ctx.fillRect(L(x), 0, L(w), L(topH));
+
+      // Fenêtres immeuble haut
+      drawWindows(x, 0, w, topH);
+
+      // Toit plat avec rebord
+      ctx.fillStyle = '#37474F';
+      ctx.fillRect(L(x - 4), L(topH - 12), L(w + 8), L(12));
+      ctx.fillStyle = '#546E7A';
+      ctx.fillRect(L(x - 4), L(topH - 14), L(w + 8), L(4));
+
+      /* --- Immeuble du bas --- */
+      const gBot = ctx.createLinearGradient(L(x), 0, L(x + w), 0);
+      gBot.addColorStop(0,   '#546E7A');
+      gBot.addColorStop(0.4, '#78909C');
+      gBot.addColorStop(1,   '#37474F');
+      ctx.fillStyle = gBot;
+      ctx.fillRect(L(x), L(botY), L(w), L(LOGICAL_H - botY));
+
+      // Fenêtres immeuble bas
+      drawWindows(x, botY, w, LOGICAL_H - botY);
+
+      // Rebord haut immeuble bas
+      ctx.fillStyle = '#37474F';
+      ctx.fillRect(L(x - 4), L(botY), L(w + 8), L(12));
+      ctx.fillStyle = '#546E7A';
+      ctx.fillRect(L(x - 4), L(botY + 10), L(w + 8), L(4));
+    }
+
+    /* Fenêtres illuminées aléatoires mais reproductibles par index */
+    function drawWindows(bx, by, bw, bh) {
+      const cols = 3, rows = Math.floor(bh / 24);
+      const wW = 10, wH = 8, padX = 10, padY = 10;
+      for (let r = 0; r < Math.min(rows - 1, 12); r++) {
+        for (let col = 0; col < cols; col++) {
+          const lit = ((bx * 7 + r * 3 + col * 5) % 4) !== 0;
+          const wx  = bx + padX + col * ((bw - padX * 2) / cols);
+          const wy  = by + padY + r * 22;
+          if (wy + wH > by + bh - 14) continue;
+          ctx.fillStyle = lit ? '#FFEE58' : '#263238';
+          ctx.fillRect(L(wx), L(wy), L(wW), L(wH));
+          if (lit) {
+            ctx.fillStyle = 'rgba(255,238,88,.3)';
+            ctx.fillRect(L(wx - 1), L(wy - 1), L(wW + 2), L(wH + 2));
+          }
+        }
+      }
+    }
+
+    /* ============================================================
+       DÉCOR — ciel, nuages, sol
+       ============================================================ */
+    let cloudX = [60, 180, 310];
+    let bgOffset = 0;
+
+    function drawBackground() {
+      /* Ciel dégradé nuit/crépuscule (Iron Man vole la nuit c'est cool) */
+      const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      sky.addColorStop(0,   '#0D1B3E');
+      sky.addColorStop(0.5, '#1A3A6E');
+      sky.addColorStop(1,   '#2E5FA3');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      /* Étoiles (fixes) */
+      ctx.fillStyle = 'rgba(255,255,255,.7)';
+      [[30,20],[90,45],[150,15],[220,30],[280,10],[360,50],[400,25],
+       [60,70],[180,60],[310,80],[350,35]].forEach(([sx, sy]) => {
+        ctx.beginPath();
+        ctx.arc(L(sx), L(sy), L(1.2), 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      /* Lune */
+      ctx.beginPath();
+      ctx.arc(L(370), L(55), L(22), 0, Math.PI * 2);
+      ctx.fillStyle = '#FFFDE7';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(L(380), L(50), L(16), 0, Math.PI * 2);
+      ctx.fillStyle = '#1A3A6E'; // "mord" la lune pour faire un croissant
+      ctx.fill();
+
+      /* Nuages de nuit (légèrement lumineux) */
+      /* Nuages : bougent seulement pendant le jeu */
+      if (state === 'playing') {
+        bgOffset = (bgOffset + 0.3) % LOGICAL_W;
+        cloudX.forEach((cx, i) => { cloudX[i] = (cx - 0.5 + LOGICAL_W) % LOGICAL_W; });
+      }
+      cloudX.forEach((cx, i) => { drawCloud(cx, 95 + i * 28); });
+
+      /* Sol / toit de la ville */
+      ctx.fillStyle = '#0D1B3E';
+      ctx.fillRect(0, L(LOGICAL_H - 28), canvas.width, L(28));
+      // Skyline silhouette
+      [0,40,80,130,175,210,260,300,340,380].forEach((bx, i) => {
+        const bh = 28 + (i * 17) % 60;
+        ctx.fillStyle = '#0A1628';
+        ctx.fillRect(L(bx), L(LOGICAL_H - 28 - bh), L(32), L(bh));
+      });
+    }
+
+    function drawCloud(cx, cy) {
+      ctx.fillStyle = 'rgba(100,140,200,.25)';
+      [[0,0,22],[18,5,16],[-18,5,16],[32,8,12],[-32,8,12]].forEach(([dx,dy,r]) => {
+        ctx.beginPath();
+        ctx.arc(L(cx + dx), L(cy + dy), L(r), 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    /* ============================================================
+       PIPES (immeubles)
+       ============================================================ */
+    function spawnPipe() {
+      const minTop = 60;
+      const maxTop = LOGICAL_H - GAP - 80;
+      const topH   = minTop + Math.random() * (maxTop - minTop);
+      pipes.push({ x: LOGICAL_W + 10, topH, botY: topH + GAP, passed: false });
+    }
+
+    /* ============================================================
+       COLLISION
+       ============================================================ */
+    function checkCollision() {
+      const m = 10; // marge de tolérance
+      const hx1 = hero.x - hero.w / 2 + m;
+      const hx2 = hero.x + hero.w / 2 - m;
+      const hy1 = hero.y - hero.h / 2 + m;
+      const hy2 = hero.y + hero.h / 2 - m;
+
+      // Sol et plafond
+      if (hero.y - hero.h / 2 < 0 || hero.y + hero.h / 2 > LOGICAL_H - 28) return true;
+
+      for (const p of pipes) {
+        if (hx2 > p.x + m && hx1 < p.x + PIPE_W - m) {
+          if (hy1 < p.topH - m || hy2 > p.botY + m) return true;
+        }
+      }
+      return false;
+    }
+
+    /* ============================================================
+       FLAP
+       ============================================================ */
+    function flap() {
+      unlockAudio();
+
+      if (state === 'idle' || state === 'dead') {
+        /* Lance la partie en mode "waiting" :
+           Iron Man est immobile, la physique ne démarre
+           qu'au prochain tap. */
+        startGame();
+        return;
+      }
+
+      if (state === 'waiting') {
+        /* Premier tap APRÈS l'overlay → démarre vraiment la physique */
+        state   = 'playing';
+        hero.vy = FLAP_FORCE;  // propulsion immédiate = pas de chute
+        playBoost();
+        thrusterFrame = 0;
+        return;
+      }
+
+      /* Pendant le jeu : boost normal */
+      hero.vy = FLAP_FORCE;
+      playBoost();
+      thrusterFrame = 0;
+    }
+
+    /* ============================================================
+       DÉMARRAGE / RESET
+       ============================================================ */
+    function startGame() {
+      state     = 'waiting';   // attend le premier tap avant de tomber
+      score     = 0;
+      pipeSpeed = PIPE_SPEED_0;
+      frameN    = 0;
+      pipes     = [];
+      hero.y    = LOGICAL_H / 2;
+      hero.vy   = 0;
+      hero.angle= 0;
+      scoreEl.textContent = '0';
+      overlay.classList.add('hidden');
+      if (raf) cancelAnimationFrame(raf);
+      gameLoop();
+    }
+
+    function die() {
+      state = 'dead';
+      playCrash();
+      if (score > record) {
+        record = score;
+        localStorage.setItem('ironman-record', record);
+        recordEl.textContent = record;
+        ovEmoji.textContent  = '🏆';
+        ovTitle.textContent  = 'Nouveau record !';
+      } else {
+        ovEmoji.textContent  = '😵';
+        ovTitle.textContent  = score > 3
+          ? `Score : ${score} — Bien joué !`
+          : 'Aïe ! Réessaie !';
+      }
+      ovSub.textContent = 'Appuie pour rejouer !';
+      overlay.classList.remove('hidden');
+    }
+
+    /* ============================================================
+       BOUCLE PRINCIPALE
+       ============================================================ */
+    function gameLoop() {
+      if (state !== 'playing' && state !== 'waiting') return;
+      raf = requestAnimationFrame(gameLoop);
+      frameN++;
+      thrusterFrame++;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      /* ---- WAITING : tout est figé, Iron Man flotte ---- */
+      if (state === 'waiting') {
+        drawBackground(); // arrière-plan statique (nuages ne bougent pas)
+        hero.y     = LOGICAL_H / 2 + Math.sin(frameN * 0.04) * 8;
+        hero.vy    = 0;
+        hero.angle = 0;
+        drawIronMan(hero.x, hero.y, 0);
+        return;
+      }
+
+      /* ---- PLAYING : tout se déplace ---- */
+
+      /* Décor animé */
+      drawBackground();
+
+      /* Immeubles */
+      for (let i = pipes.length - 1; i >= 0; i--) {
+        const p = pipes[i];
+        p.x -= pipeSpeed;
+        drawBuilding(p.x, p.topH, p.botY);
+
+        // Score
+        if (!p.passed && p.x + PIPE_W < hero.x) {
+          p.passed = true;
+          score++;
+          scoreEl.textContent = score;
+          playScore();
+          if (pipeSpeed < PIPE_SPEED_MAX) pipeSpeed += 0.04;
+        }
+        if (p.x + PIPE_W < -10) pipes.splice(i, 1);
+      }
+
+      // Spawn nouveau pipe
+      if (pipes.length === 0 || pipes[pipes.length - 1].x < LOGICAL_W - 310) {
+        spawnPipe();
+      }
+
+      /* Iron Man physique */
+      hero.vy += GRAVITY;
+      hero.y  += hero.vy;
+
+      // Inclinaison
+      const targetAngle = Math.max(-0.5, Math.min(0.5, hero.vy * 0.06));
+      hero.angle += (targetAngle - hero.angle) * 0.18;
+
+      /* Dessin Iron Man */
+      drawIronMan(hero.x, hero.y, hero.angle);
+
+      /* Collision */
+      if (checkCollision()) {
+        die();
+        return;
+      }
+
+      /* Score dans le canvas */
+      ctx.font         = `bold ${L(18)}px 'Fredoka One', cursive`;
+      ctx.fillStyle    = 'rgba(255,255,255,.85)';
+      ctx.textAlign    = 'right';
+      ctx.textBaseline = 'top';
+      ctx.fillText('⭐ ' + score, canvas.width - L(8), L(8));
+    }
+
+    /* ============================================================
+       ÉCRAN STATIQUE (avant démarrage)
+       ============================================================ */
+    function drawStatic() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBackground();
+      drawIronMan(hero.x, hero.y, 0);
+    }
+    drawStatic();
+
+    /* ============================================================
+       CONTRÔLES
+       ============================================================ */
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, { passive: false });
+    canvas.addEventListener('click',      () => flap());
+    document.addEventListener('keydown',  e => {
+      if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); flap(); }
+    });
+    overlay.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, { passive: false });
+    overlay.addEventListener('click',      () => flap());
+  </script>
+</body>
+</html>
